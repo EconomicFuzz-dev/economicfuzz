@@ -3,41 +3,48 @@
 
 name: "oracle_manipulation_basic"
 description: "Deviate oracle price by X% and observe protocol behavior"
-target_program: "<program_id>"
+attack_type: "oracle_manipulation"
 
 setup:
   fork_from: "devnet"
-  accounts_to_load:
-    - type: "pyth_feed"
-      address: "<pyth_feed_address>"
-    - type: "pool"
-      address: "<pool_address>"
+  accounts:
+    pyth_feed: "<pyth_feed_address>"
+    pool: "<pool_address>"
 
 attack_sequence:
   - action: "manipulate_oracle"
-    feed: "<pyth_feed_address>"
-    deviation_pct: 50
-    direction: "down"
-    duration_slots: 10
+    params:
+      feed: "<pyth_feed_address>"
+      deviation_pct: 50
+      direction: "down"
+      duration_slots: 10
 
-  - action: "execute_instruction"
-    program: "<target_program>"
-    instruction: "liquidate"
-    accounts:
+  - action: "execute_liquidation"
+    params:
+      program: "<target_program>"
+      instruction: "liquidate"
       victim: "<victim_position>"
 
-  - action: "manipulate_oracle"
-    feed: "<pyth_feed_address>"
-    deviation_pct: 0
-    direction: "restore"
+  - action: "restore_price"
+    params:
+      feed: "<pyth_feed_address>"
+      deviation_pct: 0
+      direction: "restore"
 
 invariants:
-  - "attacker_balance_after > attacker_balance_before"
-  - "protocol_tvl_after < protocol_tvl_before * 0.95"
+  - check: "attacker_profit"
+    condition: "attacker_balance_after > attacker_balance_before"
+  - check: "protocol_tvl_drain"
+    condition: "protocol_tvl_after < protocol_tvl_before * 0.95"
 
 fuzzer_config:
-  deviation_range: [10, 90]
-  duration_range: [1, 50]
+  strategy: "genetic"
+  parameters:
+    deviation_pct:
+      min: 10
+      max: 90
+    duration_slots:
+      min: 1
+      max: 50
   population: 50
   generations: 100
-  fitness: "attacker_profit"

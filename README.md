@@ -17,27 +17,48 @@ Define attack scenarios in YAML:
 ```yaml
 # scenario.yaml
 name: oracle_deviation_attack
-target:
-  program: <PROGRAM_ID>
-  network: devnet
-attack:
-  type: oracle_manipulation
-  params:
-    deviation_pct: 15
-    duration_slots: 5
-    affected_feeds:
-      - SOL/USD
-assertions:
-  - vault_balance_change < 0.01
-  - no_unauthorized_withdrawals
+description: "Deviate oracle price to exploit liquidation logic"
+attack_type: oracle_manipulation
+
+setup:
+  fork_from: devnet
+  accounts:
+    pyth_feed: "<pyth_feed_address>"
+    pool: "<pool_address>"
+
+attack_sequence:
+  - action: manipulate_oracle
+    params:
+      deviation_pct: 15
+      duration_slots: 5
+      feed: "<pyth_feed_address>"
+
+invariants:
+  - check: vault_balance
+    condition: "vault_balance_change < 0.01"
+
+fuzzer_config:
+  strategy: genetic
+  parameters:
+    deviation_pct:
+      min: 5
+      max: 80
+  population: 50
+  generations: 100
 ```
 
 ```bash
-# Run simulation
-economicfuzz run scenario.yaml
+# Scan a program for attack surface
+ecofuzz scan <PROGRAM_ID>
 
-# Run genetic fuzzer
-economicfuzz evolve scenario.yaml --generations 100
+# Run YAML attack scenario
+ecofuzz attack scenario.yaml
+
+# Genetic fuzzer — evolve attack parameters
+ecofuzz fuzz scenario.yaml
+
+# Generate vulnerability report
+ecofuzz report ./output
 ```
 
 ## Stack
@@ -51,7 +72,7 @@ economicfuzz evolve scenario.yaml --generations 100
 ```bash
 cargo build --release
 cd cli && npm install && npm run build
-node bin/economicfuzz.js run examples/oracle_attack.yaml
+node dist/index.js attack scenarios/oracle_manipulation.yaml
 ```
 
 ## License

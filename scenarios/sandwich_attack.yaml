@@ -3,39 +3,45 @@
 
 name: "sandwich_basic"
 description: "Classic DEX sandwich — front-run with buy, victim swaps, back-run with sell"
-target_program: "<dex_program_id>"
+attack_type: "sandwich"
 
 setup:
   fork_from: "devnet"
-  accounts_to_load:
-    - type: "amm_pool"
-      address: "<pool_address>"
-    - type: "victim_wallet"
-      address: "<victim>"
+  accounts:
+    amm_pool: "<pool_address>"
+    victim_wallet: "<victim>"
 
 attack_sequence:
-  - action: "frontrun_swap"
-    pool: "<pool_address>"
-    token_in: "SOL"
-    amount: 100
-    slippage_tolerance: 0.5
+  - action: "frontrun_buy"
+    params:
+      pool: "<pool_address>"
+      token_in: "SOL"
+      amount: 100
+      slippage_tolerance: 0.5
 
   - action: "victim_swap"
-    pool: "<pool_address>"
-    token_in: "USDC"
-    amount: 1000
+    params:
+      pool: "<pool_address>"
+      token_in: "USDC"
+      amount: 1000
 
-  - action: "backrun_swap"
-    pool: "<pool_address>"
-    token_in: "USDC"
-    amount: "all"
+  - action: "backrun_sell"
+    params:
+      pool: "<pool_address>"
+      token_in: "USDC"
+      amount: 100
 
 invariants:
-  - "sandwich_profit > 0"
-  - "victim_received < victim_expected * 0.98"
+  - check: "sandwich_profit"
+    condition: "sandwich_profit > 0"
+  - check: "victim_slippage"
+    condition: "victim_received < victim_expected * 0.98"
 
 fuzzer_config:
-  frontrun_amount_range: [10, 500]
+  strategy: "genetic"
+  parameters:
+    frontrun_amount:
+      min: 10
+      max: 500
   population: 30
   generations: 50
-  fitness: "sandwich_profit"
