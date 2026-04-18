@@ -1335,7 +1335,10 @@
   };
 
   const totalChars = yamlLines.reduce((a, [, l]) => a + l.length + 1, 0);
-  renderYaml(Math.floor(totalChars * 0.15));
+  // Start empty so the ScrollTrigger's scrub always has somewhere to grow from —
+  // previously we painted 15% as a "preview", which then reset to 0 the moment the
+  // trigger activated, flashing visibly.
+  renderYaml(0);
 
   ScrollTrigger.create({
     trigger: '#evidenceCard',
@@ -1390,6 +1393,9 @@
   countTargets.forEach(({sel, idx, to, prefix = '', suffix = ''}) => {
     const el = document.querySelectorAll(sel)[idx];
     if (!el) return;
+    // Paint the zero state synchronously so we don't flash the final value
+    // (present in the HTML for no-JS users) before the counter kicks in.
+    el.textContent = prefix + '0' + suffix;
     const obj = { n: 0 };
     gsap.to(obj, {
       n: to, duration: 1.6, ease: 'power2.out', delay: 1,
