@@ -6,6 +6,16 @@ import chalk from "chalk";
 import { loadScenario, validateScenario } from "./core/scenario-parser";
 import { executeAttack, AttackResult } from "./core/attack-executor";
 import { runGeneticFuzzer } from "./core/genetic-fuzzer";
+import { setSeed } from "./core/rng";
+
+function parseSeed(raw: string | undefined): number | undefined {
+  if (raw === undefined) return undefined;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || !Number.isInteger(n) || n < 0) {
+    throw new Error(`--seed must be a non-negative integer, got: ${raw}`);
+  }
+  return n;
+}
 
 function safeOutputDir(userDir: string): string {
   const resolved = path.resolve(process.cwd(), userDir);
@@ -45,8 +55,10 @@ program
 program
   .command("attack <scenario-file>")
   .description("run YAML attack scenario against forked state")
-  .action((file) => {
+  .option("-s, --seed <int>", "seed PRNG for reproducible runs")
+  .action((file, opts) => {
     try {
+      setSeed(parseSeed(opts.seed));
       const scenario = loadScenario(file);
       const errors = validateScenario(scenario);
 
@@ -90,8 +102,10 @@ program
 program
   .command("fuzz <scenario-file>")
   .description("genetic fuzzer — evolve attack parameters automatically")
-  .action((file) => {
+  .option("-s, --seed <int>", "seed PRNG for reproducible runs")
+  .action((file, opts) => {
     try {
+      setSeed(parseSeed(opts.seed));
       const scenario = loadScenario(file);
 
       console.log(chalk.bold(`\n  genetic fuzzer — ${scenario.name}`));

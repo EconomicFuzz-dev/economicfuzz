@@ -1,5 +1,6 @@
 import { Scenario, AttackStep } from './scenario-parser'
 import { simulateOracleAttack } from './oracle-simulator'
+import { rand } from './rng'
 
 export interface StepResult {
   step: number
@@ -82,7 +83,7 @@ function executeStep(
     case 'frontrun_buy':
     case 'backrun_sell': {
       const amount = (params.amount as number) ?? 100
-      const slippage = Math.random() * 5 // 0-5% simulated slippage
+      const slippage = rand() * 5 // 0-5% simulated slippage (seedable for determinism)
       return {
         step: index,
         action: step.action,
