@@ -70,9 +70,9 @@ program
       for (const step of result.steps) {
         const icon = step.success ? chalk.green("✓") : chalk.red("✗");
         console.log(`  ${icon} step ${step.step}: ${step.action}`);
-        if (step.output.profit) {
-          const profitVal = (step.output.profit as number).toFixed(2);
-          console.log(`    ${chalk.yellow("profit:")} ${chalk.green(profitVal)}`);
+        const p = step.output.profit;
+        if (typeof p === "number" && Number.isFinite(p) && p !== 0) {
+          console.log(`    ${chalk.yellow("profit:")} ${chalk.green(p.toFixed(2))}`);
         }
       }
 
