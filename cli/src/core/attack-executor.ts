@@ -63,9 +63,10 @@ function executeStep(
   switch (step.action) {
     case 'manipulate_oracle':
     case 'manipulate_price': {
-      const deviation = (params.deviation_pct as number) || 50
-      const positionSize = (params.position_size as number) || 1000
-      const basePrice = (params.base_price as number) || 100
+      // ?? not || — `0` is a meaningful test value (no manipulation)
+      const deviation = (params.deviation_pct as number) ?? 50
+      const positionSize = (params.position_size as number) ?? 1000
+      const basePrice = (params.base_price as number) ?? 100
       const result = simulateOracleAttack(basePrice, deviation, positionSize)
       return {
         step: index,
@@ -80,7 +81,7 @@ function executeStep(
 
     case 'frontrun_buy':
     case 'backrun_sell': {
-      const amount = (params.amount as number) || 100
+      const amount = (params.amount as number) ?? 100
       const slippage = Math.random() * 5 // 0-5% simulated slippage
       return {
         step: index,
