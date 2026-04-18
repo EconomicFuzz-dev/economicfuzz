@@ -26,6 +26,10 @@ export interface AttackResult {
 // big enough to wipe out a 0.1%-slippage sandwich. tunable via scenario.params.tx_cost_per_step.
 const DEFAULT_TX_COST_PER_STEP = 0.5
 
+// upper bound on simulated AMM slippage when no explicit pool depth is given.
+// 5% is a reasonable heuristic for low-liquidity pools targeted by sandwich attacks.
+const MAX_SIMULATED_SLIPPAGE_PCT = 5
+
 export function executeAttack(scenario: Scenario): AttackResult {
   const startTime = Date.now()
   const steps: StepResult[] = []
@@ -100,7 +104,7 @@ function executeStep(
     case 'frontrun_buy':
     case 'backrun_sell': {
       const amount = (params.amount as number) ?? 100
-      const slippage = rand() * 5 // 0-5% simulated slippage (seedable for determinism)
+      const slippage = rand() * MAX_SIMULATED_SLIPPAGE_PCT
       return {
         step: index,
         action: step.action,

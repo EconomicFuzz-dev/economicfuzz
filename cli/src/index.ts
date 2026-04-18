@@ -181,8 +181,16 @@ program
 
     const findings: Array<Record<string, unknown>> = [];
 
+    // severity buckets, in USD-equivalent profit. these are inputs to risk triage,
+    // not absolute thresholds — adjust per protocol TVL when consuming the report.
+    const SEV_CRITICAL_USD = 1000;
+    const SEV_HIGH_USD = 100;
+    const SEV_FUZZ_FITNESS_CRITICAL = 500;
+
     if (attackData) {
-      const severity = attackData.totalProfit > 1000 ? "CRITICAL" : attackData.totalProfit > 100 ? "HIGH" : "MEDIUM";
+      const severity =
+        attackData.totalProfit > SEV_CRITICAL_USD ? "CRITICAL" :
+        attackData.totalProfit > SEV_HIGH_USD ? "HIGH" : "MEDIUM";
       findings.push({
         id: `ECOFUZZ-${String(findings.length + 1).padStart(3, "0")}`,
         severity,
@@ -200,7 +208,7 @@ program
       if (profitable > 0) {
         findings.push({
           id: `ECOFUZZ-${String(findings.length + 1).padStart(3, "0")}`,
-          severity: bestFitness > 500 ? "CRITICAL" : "HIGH",
+          severity: bestFitness > SEV_FUZZ_FITNESS_CRITICAL ? "CRITICAL" : "HIGH",
           attack_type: "genetic_fuzz",
           profitable_variants: profitable,
           best_fitness: bestFitness,
