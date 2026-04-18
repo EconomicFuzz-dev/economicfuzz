@@ -41,6 +41,12 @@ export function loadScenario(filepath: string): Scenario {
   const raw = fs.readFileSync(filepath, 'utf-8')
   const parsed = YAML.parse(raw)
 
+  if (parsed === null || parsed === undefined) {
+    throw new Error(`scenario file is empty or contains only comments: ${filepath}`)
+  }
+  if (typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error(`scenario root must be a YAML mapping (got ${Array.isArray(parsed) ? 'array' : typeof parsed})`)
+  }
   if (!parsed.name || !parsed.attack_type || !parsed.attack_sequence) {
     throw new Error('invalid scenario: missing name, attack_type, or attack_sequence')
   }
