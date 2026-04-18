@@ -35,13 +35,20 @@ program
   .description("economic attack simulation for DeFi protocols")
   .version("0.1.0");
 
+// base58 alphabet, 32-44 chars — covers all Ed25519 pubkeys
+const PUBKEY_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
+
 program
   .command("scan <program-id>")
-  .description("scan a deployed program for economic vulnerabilities")
+  .description("show generic DeFi attack surface checklist (heuristic, not on-chain)")
   .option("-r, --rpc <url>", "RPC endpoint", "https://api.devnet.solana.com")
-  .action((programId, opts) => {
+  .action((programId, _opts) => {
+    if (!PUBKEY_RE.test(programId)) {
+      console.error(`error: '${programId}' is not a valid Solana program id (base58, 32-44 chars)`);
+      process.exit(1);
+    }
     console.log(chalk.bold(`\n  ecofuzz scan — ${programId}\n`));
-    console.log(chalk.gray("  attack surface analysis:"));
+    console.log(chalk.gray("  attack surface checklist (heuristic — runs the same set of checks against any program):"));
     console.log(chalk.gray("  " + "─".repeat(50)));
     console.log(`  ${chalk.red("HIGH")}   oracle dependency     — Pyth/Switchboard feed manipulation`);
     console.log(`  ${chalk.red("HIGH")}   flash loan exposure   — uncollateralized borrow vectors`);
@@ -49,6 +56,7 @@ program
     console.log(`  ${chalk.yellow("MED")}    liquidation threshold — health factor edge cases`);
     console.log(`  ${chalk.blue("LOW")}    MEV opportunity       — priority fee sensitivity`);
     console.log(chalk.gray("  " + "─".repeat(50)));
+    console.log(chalk.gray("  note: a deeper RPC-backed scan is on the roadmap; for now, see ecofuzz attack <scenario>"));
     console.log(`\n  ${chalk.gray("run")} ecofuzz attack <scenario.yaml> ${chalk.gray("to simulate")}`);
   });
 
