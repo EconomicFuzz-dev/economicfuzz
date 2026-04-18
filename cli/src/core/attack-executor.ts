@@ -15,26 +15,41 @@ export interface AttackResult {
   steps: StepResult[]
   invariantsChecked: number
   invariantsPassed: number
-  totalProfit: number
+  grossProfit: number
+  txCostTotal: number
+  totalProfit: number  // grossProfit - txCostTotal
   duration: number
 }
+
+// each on-chain instruction in a real attack costs priority fee + base fee.
+// modelled as a flat per-step overhead (USD-equivalent) — small enough to ignore at $400 oracle profits,
+// big enough to wipe out a 0.1%-slippage sandwich. tunable via scenario.params.tx_cost_per_step.
+const DEFAULT_TX_COST_PER_STEP = 0.5
 
 export function executeAttack(scenario: Scenario): AttackResult {
   const startTime = Date.now()
   const steps: StepResult[] = []
-  let totalProfit = 0
+  const txCost =
+    typeof scenario.params?.tx_cost_per_step === 'number'
+      ? (scenario.params.tx_cost_per_step as number)
+      : DEFAULT_TX_COST_PER_STEP
+  let grossProfit = 0
+  let executedSteps = 0
 
   for (let i = 0; i < scenario.attack_sequence.length; i++) {
     const step = scenario.attack_sequence[i]
     const result = executeStep(step, i, scenario)
     steps.push(result)
+    executedSteps++
 
     if (!result.success) break // stop on failed step
 
-    if (result.output.profit) {
-      totalProfit += result.output.profit as number
+    if (typeof result.output.profit === 'number') {
+      grossProfit += result.output.profit as number
     }
   }
+
+  const totalProfit = grossProfit - executedSteps * txCost
 
   // check invariants
   let invariantsPassed = 0
@@ -49,6 +64,8 @@ export function executeAttack(scenario: Scenario): AttackResult {
     steps,
     invariantsChecked: scenario.invariants?.length || 0,
     invariantsPassed,
+    grossProfit,
+    txCostTotal: executedSteps * txCost,
     totalProfit,
     duration: Date.now() - startTime,
   }

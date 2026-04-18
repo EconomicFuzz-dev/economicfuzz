@@ -89,8 +89,10 @@ program
       }
 
       console.log(chalk.gray("  " + "─".repeat(50)));
+      console.log(`  gross profit:   ${chalk.gray(result.grossProfit.toFixed(2))}`);
+      console.log(`  tx cost:        ${chalk.gray("-" + result.txCostTotal.toFixed(2))}`);
       const profitColor = result.totalProfit > 0 ? chalk.red : chalk.green;
-      console.log(`  total profit:   ${profitColor(result.totalProfit.toFixed(2))}`);
+      console.log(`  net profit:     ${profitColor(result.totalProfit.toFixed(2))}`);
       console.log(`  invariants:     ${result.invariantsPassed}/${result.invariantsChecked} passed`);
       console.log(`  duration:       ${chalk.gray(result.duration + "ms")}`);
     } catch (e) {

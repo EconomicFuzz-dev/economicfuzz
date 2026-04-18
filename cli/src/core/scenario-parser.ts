@@ -26,6 +26,8 @@ export interface Scenario {
     fork_from: string
     accounts: Record<string, string>
   }
+  // top-level scenario tuning (cost models, baseline assumptions)
+  params?: Record<string, unknown>
   attack_sequence: AttackStep[]
   invariants: Invariant[]
   fuzzer_config: FuzzerConfig
