@@ -1,10 +1,22 @@
 #!/usr/bin/env node
 import { Command } from "commander";
 import * as fs from "fs";
+import * as path from "path";
 import chalk from "chalk";
 import { loadScenario, validateScenario } from "./core/scenario-parser";
 import { executeAttack, AttackResult } from "./core/attack-executor";
 import { runGeneticFuzzer } from "./core/genetic-fuzzer";
+
+function safeOutputDir(userDir: string): string {
+  const resolved = path.resolve(process.cwd(), userDir);
+  const root = path.resolve(process.cwd());
+  if (!resolved.startsWith(root + path.sep) && resolved !== root) {
+    throw new Error(
+      `output dir escapes working directory: ${userDir} → ${resolved}`
+    );
+  }
+  return resolved;
+}
 
 const program = new Command();
 
@@ -114,13 +126,34 @@ program
   .command("report <output-dir>")
   .description("generate vulnerability report from last run")
   .action((dir) => {
-    fs.mkdirSync(dir, { recursive: true });
+    let outDir: string;
+    try {
+      outDir = safeOutputDir(dir);
+    } catch (e) {
+      console.error(`error: ${e instanceof Error ? e.message : e}`);
+      process.exit(1);
+    }
+    fs.mkdirSync(outDir, { recursive: true });
 
     let attackData: AttackResult | null = null;
     let fuzzData: Record<string, unknown> | null = null;
 
-    try { attackData = JSON.parse(fs.readFileSync(".ecofuzz/last-attack.json", "utf-8")); } catch {}
-    try { fuzzData = JSON.parse(fs.readFileSync(".ecofuzz/last-fuzz.json", "utf-8")); } catch {}
+    try {
+      attackData = JSON.parse(fs.readFileSync(".ecofuzz/last-attack.json", "utf-8"));
+    } catch (e) {
+      const code = (e as NodeJS.ErrnoException).code;
+      if (code !== "ENOENT") {
+        console.warn(chalk.yellow(`  warn: could not read last-attack.json (${code || "parse error"})`));
+      }
+    }
+    try {
+      fuzzData = JSON.parse(fs.readFileSync(".ecofuzz/last-fuzz.json", "utf-8"));
+    } catch (e) {
+      const code = (e as NodeJS.ErrnoException).code;
+      if (code !== "ENOENT") {
+        console.warn(chalk.yellow(`  warn: could not read last-fuzz.json (${code || "parse error"})`));
+      }
+    }
 
     const findings: Array<Record<string, unknown>> = [];
 
@@ -163,7 +196,7 @@ program
       findings,
     };
 
-    const reportPath = `${dir}/ecofuzz-report.json`;
+    const reportPath = path.join(outDir, "ecofuzz-report.json");
     fs.writeFileSync(reportPath, JSON.stringify(report, null, 2));
 
     // console output
