@@ -322,6 +322,7 @@
   }
 
   .split{display:grid;grid-template-columns:1fr 1fr;gap:40px;align-items:start}
+  .split > *{min-width:0}
   .split-left{position:sticky;top:100px;padding-right:10px}
   .split-left h3{font-family:var(--display);font-weight:400;font-size:42px;line-height:1.05;letter-spacing:-.02em;margin-bottom:18px}
   .split-left p{font-size:17px;line-height:1.65;margin-bottom:14px;color:var(--ink-2)}
@@ -440,14 +441,19 @@
   .horz-panel.outro{
     background:linear-gradient(180deg, var(--ink) 0%, #000 100%);text-align:center;
   }
+  .horz-panel.outro > div{
+    max-width:min(88vw,1000px);display:flex;flex-direction:column;align-items:center;gap:36px;
+  }
   .horz-panel.outro .outro-stamp{
-    font-family:var(--display);font-weight:300;font-size:clamp(80px,14vw,220px);line-height:.85;letter-spacing:-.04em;
+    font-family:var(--display);font-weight:300;font-size:clamp(56px,8vw,128px);line-height:.9;letter-spacing:-.035em;
     color:var(--red);font-variation-settings:"SOFT" 50,"WONK" 1,"opsz" 144;
-    border:6px solid var(--red);padding:40px 60px;transform:rotate(-3deg);
-    text-transform:uppercase;
+    border:5px solid var(--red);padding:26px 44px;
+    text-transform:uppercase;display:inline-block;max-width:100%;
+    transform-origin:50% 50%;
   }
   .horz-panel.outro .outro-total{
-    font-family:var(--mono);font-size:.7rem;letter-spacing:.3em;text-transform:uppercase;margin-top:40px;color:rgba(245,241,234,.7)
+    font-family:var(--mono);font-size:.7rem;letter-spacing:.3em;text-transform:uppercase;color:rgba(245,241,234,.7);
+    max-width:72ch;line-height:1.7;
   }
 
   /* ─── Fund Flow ─── */
@@ -547,23 +553,73 @@
   @media (max-width:960px){
     body{font-size:16px}
     .container{padding:0 20px}
+    .hero{padding:40px 0 60px}
     .hero-inner{grid-template-columns:1fr;gap:40px}
+    .hero-title{font-size:clamp(40px,10vw,72px);word-break:break-word;hyphens:auto}
+    .hero-title .redact{display:inline;padding:.04em .18em}
+    .hero-title .redact::before{display:none}
+    .hero-title .brush{background-size:100% 1.6em}
+    .hero-lede{font-size:19px;max-width:none}
+    .hero-kicker{flex-wrap:wrap;gap:10px;margin-bottom:18px}
+    .hero-kicker::before{display:none}
+    .hero-actions{flex-direction:column;align-items:stretch;gap:10px}
+    .hero-actions .btn,.hero-actions .btn-copy{width:100%;justify-content:center}
+    .article{padding:50px 0 20px}
     .article-grid{grid-template-columns:1fr;gap:18px}
     .article-drop{text-align:left;font-size:84px}
-    .article-body .pullout{float:none;width:auto;margin:18px 0}
+    .article-body{font-size:17px}
+    .article-body > p + p{text-indent:1.4em}
+    .article-body .pullout{float:none;width:auto;margin:18px 0;font-size:19px}
+    .exhibit{padding:60px 0}
+    .exhibit-head{flex-direction:column;align-items:flex-start;gap:14px}
     .split{grid-template-columns:1fr;gap:40px}
-    .split-left{position:static}
-    .step-inner{grid-template-columns:1fr;gap:20px}
-    .step-num{writing-mode:horizontal-tb;transform:none;display:flex;align-items:baseline;gap:18px}
-    .step-num strong{font-size:72px;margin-bottom:0}
-    .step-visual{height:auto;min-height:260px}
+    .split-left{position:static;padding-right:0}
+    .split-left h3{font-size:28px;word-break:break-word;hyphens:auto}
+    .split-left p{font-size:16px}
+    .figure-stat{grid-template-columns:repeat(3,1fr);padding:14px;gap:10px}
+    .figure-stat .s-val{font-size:22px}
+    .evidence-card{box-shadow:8px 8px 0 -1px var(--paper-edge), 8px 8px 0 0 var(--ink)}
+    .walkthrough-header{padding:0 22px;top:20px}
+    .step-inner{grid-template-columns:1fr;gap:22px}
+    .step-num{display:flex;align-items:baseline;gap:18px;padding-top:0}
+    .step-num strong{font-size:64px;margin-bottom:0}
+    .step-num .step-slot{padding-top:0;border-top:0;border-left:1px solid rgba(200,155,58,.4);padding-left:14px}
+    .step-visual{height:auto;min-height:240px;padding-top:38px}
+    .step-body h3{font-size:clamp(28px,7vw,44px)}
+    .horz-panel{padding:90px 22px 70px}
+    .horz-panel.outro .outro-stamp{padding:22px 26px;border-width:4px}
+    .flow{padding:60px 0 50px}
+    .flow-head{flex-direction:column;align-items:flex-start;gap:14px}
+    .flow-canvas{height:340px}
     .flow-legend{grid-template-columns:repeat(2,1fr)}
+    .findings{padding:60px 0}
+    .findings-head{flex-direction:column;align-items:flex-start;gap:14px}
+    .f-table thead{display:none}
+    .f-table,.f-table tbody,.f-table tr,.f-table td{display:block;width:100%}
+    .f-table tr{padding:18px 0;border-bottom:1px solid var(--rule)}
+    .f-table td{padding:6px 0;text-align:left}
+    .f-table .f-sev{width:auto}
+    .f-table .f-title b{font-size:20px}
+    .f-table .f-loss{font-size:22px;text-align:left;margin-top:8px}
+    .f-table .stamp-el{position:static;display:inline-block;margin-top:8px;font-size:26px;padding:4px 10px;border-width:2px}
+    .repro{padding:60px 0}
     .repro-grid{grid-template-columns:1fr;gap:36px}
-    .f-table .f-title{width:auto}
-    .f-table .f-loss{font-size:18px}
-    .colo-grid{grid-template-columns:1fr 1fr;gap:28px}
+    .repro-term{padding:16px;font-size:12px;box-shadow:8px 8px 0 -1px var(--paper-edge), 8px 8px 0 0 var(--ink);overflow-x:auto}
+    .colophon{padding:50px 0 32px}
+    .colo-grid{grid-template-columns:1fr 1fr;gap:28px;margin-bottom:28px}
+    .colo-foot{flex-direction:column;gap:12px;align-items:flex-start;text-align:left}
+    .masthead{padding:16px 0 10px}
+    .masthead-top{grid-template-columns:1fr 1fr;gap:10px}
+    .mast-seal{display:none}
+    .mast-meta.right{justify-self:end}
     .masthead-title{font-size:clamp(40px,16vw,120px)}
-    .nav{overflow-x:auto;justify-content:flex-start;gap:16px;white-space:nowrap}
+    .masthead-sub{grid-template-columns:1fr;gap:6px;text-align:center}
+    .masthead-sub > div{text-align:center!important}
+    .nav{overflow-x:auto;justify-content:flex-start;gap:16px;white-space:nowrap;padding:10px 20px;border-left:0;border-right:0}
+    .chart-card{box-shadow:8px 8px 0 -1px var(--paper-edge), 8px 8px 0 0 var(--ink)}
+    .hero-meta-grid{grid-template-columns:repeat(2,1fr);gap:14px 18px}
+    .hero-meta-grid dd{font-size:22px}
+    .asterism{padding:36px 0;letter-spacing:1em;font-size:20px}
   }
 
   @media (prefers-reduced-motion:reduce){
@@ -1202,20 +1258,14 @@
 <!-- GSAP -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
-<script src="https://unpkg.com/lenis@1.0.42/dist/lenis.min.js"></script>
 
 <script>
 (() => {
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   gsap.registerPlugin(ScrollTrigger);
 
-  // ── Smooth scroll (Lenis) ──────────────────────
-  if (!reduced && window.Lenis) {
-    const lenis = new Lenis({ duration: 1.05, easing: t => Math.min(1, 1.001 - Math.pow(2, -10 * t)) });
-    lenis.on('scroll', ScrollTrigger.update);
-    gsap.ticker.add(t => lenis.raf(t * 1000));
-    gsap.ticker.lagSmoothing(0);
-  }
+  // Native scroll — we dropped Lenis because the CDN is blocked by ORB in
+  // some browsers, and GSAP ScrollTrigger reads scroll events directly.
 
   // ── Copy button ────────────────────────────────
   document.querySelectorAll('[data-copy]').forEach(btn => {
@@ -1380,26 +1430,39 @@
         }
       });
 
-      // dramatic slam-in on outro stamp when it enters
+      // dramatic (but bounded) slam-in on the outro stamp when the last
+      // panel enters. Toggle-based because the horizontal tween ends with
+      // the panel pinned at left:0, so a scrub with end 'left center' never
+      // completes — the previous version left opacity stuck at 0.
       const outro = document.getElementById('outroStamp');
+      const outroTotal = document.querySelector('.horz-panel.outro .outro-total');
       if (outro) {
-        gsap.fromTo(outro,
-          { scale: 4, rotation: -18, opacity: 0, filter: 'blur(12px)' },
-          {
-            scale: 1, rotation: -3, opacity: 1, filter: 'blur(0px)',
-            duration: 1, ease: 'back.out(1.7)',
-            scrollTrigger: {
-              trigger: panels[panels.length - 1],
-              containerAnimation: tween,
-              start: 'left 70%', end: 'left 30%', scrub: .5
-            }
+        gsap.set(outro, { scale: 1.4, rotation: -10, opacity: 0, filter: 'blur(10px)' });
+        if (outroTotal) gsap.set(outroTotal, { opacity: 0, y: 16 });
+        ScrollTrigger.create({
+          trigger: panels[panels.length - 1],
+          containerAnimation: tween,
+          start: 'left 80%',
+          toggleActions: 'play none none reverse',
+          onEnter: () => {
+            gsap.to(outro, {
+              scale: 1, rotation: -3, opacity: 1, filter: 'blur(0px)',
+              duration: 1.1, ease: 'back.out(1.6)'
+            });
+            if (outroTotal) gsap.to(outroTotal, { opacity: 1, y: 0, duration: .8, delay: .35, ease: 'power2.out' });
+          },
+          onLeaveBack: () => {
+            gsap.to(outro, { scale: 1.4, rotation: -10, opacity: 0, filter: 'blur(10px)', duration: .3 });
+            if (outroTotal) gsap.to(outroTotal, { opacity: 0, y: 16, duration: .25 });
           }
-        );
+        });
       }
 
-      // per-panel reveals tied to horizontal scroll
+      // per-panel reveals tied to horizontal scroll (skip intro + outro —
+      // they have bespoke entrance animations above)
       panels.forEach((p, i) => {
-        const body = p.querySelector('.step-body, .intro-title, .outro-stamp');
+        if (p.classList.contains('outro') || p.classList.contains('intro')) return;
+        const body = p.querySelector('.step-body');
         if (!body) return;
         gsap.from(body, {
           opacity: 0, y: 30, duration: 1, ease: 'power2.out',
@@ -1479,18 +1542,24 @@
   });
 
   // ── Nav active ─────────────────────────────────
+  // ScrollTrigger.batch fires once per batch entry — wrong API for tracking
+  // which single section is currently at centre. Use one trigger per section.
   const navLinks = document.querySelectorAll('.nav a[href^="#"]');
-  const sections = Array.from(navLinks).map(a => document.querySelector(a.getAttribute('href'))).filter(Boolean);
-  ScrollTrigger.batch(sections, {
-    start: 'top center',
-    end: 'bottom center',
-    onEnter: s => setActive(s),
-    onEnterBack: s => setActive(s),
-  });
-  function setActive(section) {
-    const id = section[0]?.id || section.id;
-    navLinks.forEach(a => a.classList.toggle('active', a.getAttribute('href') === '#' + id));
+  const sections = Array.from(navLinks)
+    .map(a => ({ link: a, sec: document.querySelector(a.getAttribute('href')) }))
+    .filter(x => x.sec);
+  function setActive(link) {
+    navLinks.forEach(a => a.classList.toggle('active', a === link));
   }
+  sections.forEach(({ link, sec }) => {
+    ScrollTrigger.create({
+      trigger: sec,
+      start: 'top center',
+      end: 'bottom center',
+      onEnter: () => setActive(link),
+      onEnterBack: () => setActive(link),
+    });
+  });
 })();
 </script>
 </body>
