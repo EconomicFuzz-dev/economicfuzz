@@ -347,7 +347,7 @@
   .evidence-card-head .dotgrp{display:flex;gap:6px}
   .evidence-card-head .dotgrp i{width:8px;height:8px;background:rgba(245,241,234,.25);border-radius:50%;display:block}
   .evidence-card-head .dotgrp i:first-child{background:var(--red)}
-  .evidence-card-body{padding:22px 22px 26px;font-family:var(--mono);font-size:13px;line-height:1.75}
+  .evidence-card-body{padding:22px 22px 26px;font-family:var(--mono);font-size:13px;line-height:1.75;overflow-x:auto}
   .evidence-card-body .tok-key{color:var(--amber)}
   .evidence-card-body .tok-str{color:#e7d9b6}
   .evidence-card-body .tok-num{color:#ff9b7a}
@@ -435,7 +435,8 @@
     border:1px solid rgba(245,241,234,.1);
   }
   .step-visual .sv-bar-fill{
-    position:absolute;inset:0 100% 0 0;background:linear-gradient(90deg, var(--amber), var(--red));
+    position:absolute;inset:0 auto 0 0;width:var(--w,70%);
+    background:linear-gradient(90deg, var(--amber), var(--red));
   }
 
   .horz-panel.outro{
@@ -580,6 +581,9 @@
     .figure-stat .s-val{font-size:22px}
     .evidence-card{box-shadow:8px 8px 0 -1px var(--paper-edge), 8px 8px 0 0 var(--ink)}
     .walkthrough-header{padding:0 22px;top:20px}
+    /* Counter is driven by horizontal ScrollTrigger (desktop-only). On mobile
+       it sticks at the initial value, so hide it rather than lying. */
+    .walkthrough-header .wh-count{display:none}
     .step-inner{grid-template-columns:1fr;gap:22px}
     .step-num{display:flex;align-items:baseline;gap:18px;padding-top:0}
     .step-num strong{font-size:64px;margin-bottom:0}
@@ -598,7 +602,9 @@
     .f-table,.f-table tbody,.f-table tr,.f-table td{display:block;width:100%}
     .f-table tr{padding:18px 0;border-bottom:1px solid var(--rule)}
     .f-table td{padding:6px 0;text-align:left}
-    .f-table .f-sev{width:auto}
+    /* Override the desktop per-column fixed widths that otherwise leak
+       through (.f-title:32% etc.) and squash b elements to one-word-per-line. */
+    .f-table .f-sev,.f-table .f-title,.f-table .f-loss{width:auto}
     .f-table .f-title b{font-size:20px}
     .f-table .f-loss{font-size:22px;text-align:left;margin-top:8px}
     .f-table .stamp-el{position:static;display:inline-block;margin-top:8px;font-size:26px;padding:4px 10px;border-width:2px}
