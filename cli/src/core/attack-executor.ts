@@ -117,20 +117,61 @@ function executeStep(
   }
 }
 
+// minimal arithmetic-comparison evaluator for YAML invariants.
+// supports: <ident> <op> <number|ident>   where op ∈ < <= > >= == != ; and chained AND via '&&'.
+// idents resolve from a small whitelist of context keys (totalProfit, anySlippage, ...).
+// returns null when the condition references unknown identifiers — caller treats that as "skipped".
+export function evaluateCondition(
+  raw: string,
+  context: { totalProfit: number; steps: StepResult[] }
+): boolean | null {
+  const ctx: Record<string, number> = {
+    totalProfit: context.totalProfit,
+    stepCount: context.steps.length,
+    successfulSteps: context.steps.filter((s) => s.success).length,
+    anySlippage: context.steps.some(
+      (s) => typeof s.output.slippage === 'number' && (s.output.slippage as number) > 0
+    )
+      ? 1
+      : 0,
+    maxStepProfit: context.steps.reduce((m, s) => {
+      const p = typeof s.output.profit === 'number' ? (s.output.profit as number) : 0
+      return p > m ? p : m
+    }, 0),
+  }
+
+  const clauses = raw.split('&&').map((c) => c.trim()).filter(Boolean)
+  if (clauses.length === 0) return null
+
+  for (const clause of clauses) {
+    const m = clause.match(/^\s*([A-Za-z_][\w.]*)\s*(<=|>=|==|!=|<|>)\s*([A-Za-z_][\w.]*|-?\d+(?:\.\d+)?)\s*$/)
+    if (!m) return null
+    const [, lhs, op, rhsRaw] = m
+    if (!(lhs in ctx)) return null
+    const left = ctx[lhs]
+    const right = /^-?\d/.test(rhsRaw) ? Number(rhsRaw) : ctx[rhsRaw]
+    if (right === undefined || Number.isNaN(right)) return null
+    let pass: boolean
+    switch (op) {
+      case '<': pass = left < right; break
+      case '<=': pass = left <= right; break
+      case '>': pass = left > right; break
+      case '>=': pass = left >= right; break
+      case '==': pass = left === right; break
+      case '!=': pass = left !== right; break
+      default: return null
+    }
+    if (!pass) return false
+  }
+  return true
+}
+
 function checkInvariant(
   condition: string,
   context: { totalProfit: number; steps: StepResult[] }
 ): boolean {
-  // simple invariant evaluation
-  if (condition.includes('profit') && condition.includes('>') && condition.includes('0')) {
-    return context.totalProfit > 0
-  }
-  if (condition.includes('slippage') && condition.includes('>')) {
-    const anySlippage = context.steps.some(
-      (s) => (s.output.slippage as number) > 0
-    )
-    return anySlippage
-  }
-  // default: pass
-  return true
+  const result = evaluateCondition(condition, context)
+  // unknown identifiers / unparseable → skip (count as "no violation").
+  // legacy YAMLs reference balances we don't simulate (attacker_balance_after, protocol_tvl_after).
+  return result === null ? true : result
 }
