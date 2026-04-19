@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>EconomicFuzz — DeFi Attack Simulator</title>
+  <link href="https://fonts.googleapis.com/css2?family=Anonymous+Pro:wght@400;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+  <style>
+    :root {
+      --bg: #0c0c0f;
+      --panel: #141418;
+      --panel-hover: #1a1a20;
+      --border: #2a2a32;
+      --red: #ff2d55;
+      --red-dim: #cc1a3a;
+      --orange: #ff9500;
+      --yellow: #ffd60a;
+      --green: #30d158;
+      --blue: #0a84ff;
+      --text: #e5e5ea;
+      --text-dim: #636366;
+      --mono: 'Anonymous Pro', monospace;
+      --sans: 'Inter', sans-serif;
+    }
+
+    * { margin:0; padding:0; box-sizing:border-box; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      line-height: 1.6;
+    }
+
+    /* Threat level strip */
+    .threat-strip {
+      height: 3px;
+      background: linear-gradient(90deg, var(--green) 0%, var(--yellow) 30%, var(--orange) 60%, var(--red) 100%);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    /* Header */
+    .header {
+      padding: 14px 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border);
+      background: rgba(12,12,15,0.95);
+      backdrop-filter: blur(10px);
+      position: sticky;
+      top: 3px;
+      z-index: 50;
+    }
+
+    .logo {
+      font-family: var(--mono);
+      font-weight: 700;
+      font-size: 15px;
+      color: var(--red);
+      letter-spacing: 0.5px;
+    }
+
+    .logo span { color: var(--text-dim); }
+
+    .header-links {
+      display: flex;
+      gap: 20px;
+      align-items: center;
+    }
+
+    .header-links a {
+      font-size: 12px;
+      color: var(--text-dim);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    .header-links a:hover { color: var(--red); }
+
+    /* Hero */
+    .hero {
+      padding: 80px 28px 50px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero::before {
+      content: '';
+      position: absolute;
+      top: -50%;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 600px;
+      height: 600px;
+      background: radial-gradient(circle, rgba(255,45,85,0.06) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .hero-badge {
+      display: inline-block;
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--red);
+      background: rgba(255,45,85,0.1);
+      border: 1px solid rgba(255,45,85,0.2);
+      padding: 4px 14px;
+      border-radius: 20px;
+      margin-bottom: 24px;
+      letter-spacing: 1px;
+    }
+
+    .hero h1 {
+      font-size: 52px;
+      font-weight: 800;
+      letter-spacing: -1px;
+      margin-bottom: 16px;
+      color: white;
+    }
+
+    .hero h1 em {
+      font-style: normal;
+      color: var(--red);
+    }
+
+    .hero p {
+      font-size: 17px;
+      color: var(--text-dim);
+      max-width: 520px;
+      margin: 0 auto 36px;
+      line-height: 1.7;
+    }
+
+    .hero-actions {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+    }
+
+    .btn-primary {
+      font-family: var(--sans);
+      font-size: 13px;
+      font-weight: 600;
+      background: var(--red);
+      color: white;
+      border: none;
+      padding: 10px 24px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-primary:hover { background: var(--red-dim); transform: translateY(-1px); }
+
+    .btn-secondary {
+      font-family: var(--mono);
+      font-size: 12px;
+      background: var(--panel);
+      color: var(--text);
+      border: 1px solid var(--border);
+      padding: 10px 20px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+      position: relative;
+    }
+
+    .btn-secondary:hover { border-color: var(--text-dim); }
+
+    /* Attack types */
+    .attacks-section {
+      max-width: 900px;
+      margin: 20px auto 50px;
+      padding: 0 28px;
+    }
+
+    .section-label {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      margin-bottom: 20px;
+    }
+
+    .attack-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+    }
+
+    .attack-card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 20px;
+      transition: all 0.3s;
+      cursor: default;
+    }
+
+    .attack-card:hover {
+      border-color: rgba(255,45,85,0.3);
+      background: var(--panel-hover);
+    }
+
+    .attack-card-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .threat-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+
+    .threat-dot.critical { background: var(--red); box-shadow: 0 0 8px var(--red); }
+    .threat-dot.high { background: var(--orange); box-shadow: 0 0 8px var(--orange); }
+    .threat-dot.medium { background: var(--yellow); box-shadow: 0 0 8px var(--yellow); }
+
+    .attack-card h3 {
+      font-size: 14px;
+      font-weight: 600;
+      color: white;
+    }
+
+    .attack-card p {
+      font-size: 12px;
+      color: var(--text-dim);
+      line-height: 1.6;
+    }
+
+    .attack-card .tag {
+      display: inline-block;
+      font-family: var(--mono);
+      font-size: 10px;
+      padding: 2px 8px;
+      border-radius: 4px;
+      margin-top: 10px;
+      background: rgba(255,45,85,0.08);
+      color: var(--red);
+    }
+
+    /* Simulation section */
+    .sim-section {
+      max-width: 900px;
+      margin: 0 auto 60px;
+      padding: 0 28px;
+    }
+
+    .sim-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+
+    .scenario-tabs {
+      display: flex;
+      gap: 8px;
+    }
+
+    .scenario-tab {
+      font-family: var(--mono);
+      font-size: 11px;
+      padding: 6px 14px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text-dim);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .scenario-tab:hover { border-color: var(--text-dim); color: var(--text); }
+    .scenario-tab.active { background: var(--red); border-color: var(--red); color: white; }
+
+    /* Simulation display */
+    .sim-display {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .sim-toolbar {
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .sim-toolbar-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .sim-file {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text-dim);
+    }
+
+    .sim-file .fname { color: var(--orange); }
+
+    .run-btn {
+      font-family: var(--mono);
+      font-size: 11px;
+      padding: 5px 16px;
+      border-radius: 5px;
+      border: 1px solid var(--red);
+      background: rgba(255,45,85,0.1);
+      color: var(--red);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .run-btn:hover { background: var(--red); color: white; }
+    .run-btn.running { background: var(--red); color: white; pointer-events: none; }
+
+    /* YAML preview */
+    .yaml-panel {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      min-height: 300px;
+    }
+
+    .yaml-code {
+      padding: 16px;
+      font-family: var(--mono);
+      font-size: 12px;
+      line-height: 1.9;
+      border-right: 1px solid var(--border);
+      background: #0e0e12;
+      overflow-y: auto;
+      max-height: 420px;
+    }
+
+    .yaml-code .key { color: var(--blue); }
+    .yaml-code .str { color: var(--green); }
+    .yaml-code .num { color: var(--orange); }
+    .yaml-code .comment { color: var(--text-dim); }
+
+    .sim-output {
+      padding: 16px;
+      font-family: var(--mono);
+      font-size: 12px;
+      line-height: 1.9;
+      background: #0a0a0d;
+      overflow-y: auto;
+      max-height: 420px;
+    }
+
+    .sim-output .g { color: var(--green); }
+    .sim-output .r { color: var(--red); }
+    .sim-output .o { color: var(--orange); }
+    .sim-output .y { color: var(--yellow); }
+    .sim-output .d { color: var(--text-dim); }
+    .sim-output .w { color: white; font-weight: 700; }
+    .sim-output .tag-crit { background: rgba(255,45,85,0.2); color: var(--red); padding: 1px 6px; border-radius: 3px; font-size: 10px; }
+    .sim-output .tag-med { background: rgba(255,213,10,0.15); color: var(--yellow); padding: 1px 6px; border-radius: 3px; font-size: 10px; }
+    .sim-output .tag-ok { background: rgba(48,209,88,0.15); color: var(--green); padding: 1px 6px; border-radius: 3px; font-size: 10px; }
+
+    .sim-output .step-ok::before { content: '✓ '; color: var(--green); }
+    .sim-output .profit { color: var(--red); font-weight: 700; }
+
+    /* How it works */
+    .how-section {
+      max-width: 700px;
+      margin: 0 auto 60px;
+      padding: 0 28px;
+    }
+
+    .how-steps {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+
+    .how-step {
+      display: flex;
+      gap: 20px;
+      padding: 20px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .how-step:last-child { border-bottom: none; }
+
+    .step-num {
+      font-family: var(--mono);
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--red);
+      opacity: 0.4;
+      min-width: 40px;
+    }
+
+    .step-content h4 {
+      font-size: 14px;
+      font-weight: 600;
+      color: white;
+      margin-bottom: 4px;
+    }
+
+    .step-content p {
+      font-size: 13px;
+      color: var(--text-dim);
+    }
+
+    .step-content code {
+      font-family: var(--mono);
+      font-size: 11px;
+      background: rgba(255,45,85,0.08);
+      color: var(--red);
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+
+    /* Footer */
+    .footer {
+      text-align: center;
+      padding: 40px 28px;
+      font-size: 12px;
+      color: var(--text-dim);
+      border-top: 1px solid var(--border);
+    }
+
+    @media (max-width: 768px) {
+      .attack-grid { grid-template-columns: 1fr; }
+      .yaml-panel { grid-template-columns: 1fr; }
+      .hero h1 { font-size: 36px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="threat-strip"></div>
+
+  <header class="header">
+    <div class="logo">ECOFUZZ <span>// economic attack simulator</span></div>
+    <div class="header-links">
+      <a href="#attacks">Threat Models</a>
+      <a href="#sim">Simulator</a>
+      <a href="#how">How It Works</a>
+    </div>
+  </header>
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="hero-badge">DEFI SECURITY RESEARCH TOOL</div>
+    <h1>Find the <em>exploit</em><br>before attackers do</h1>
+    <p>Simulate oracle manipulation, sandwich attacks, and flash loan exploits against DeFi protocols. YAML-driven scenarios with genetic fuzzing.</p>
+    <div class="hero-actions">
+      <button class="btn-primary" onclick="document.getElementById('sim').scrollIntoView({behavior:'smooth'})">Launch Simulator</button>
+      <button class="btn-secondary" onclick="navigator.clipboard.writeText('npx ecofuzz attack scenario.yaml');this.innerHTML='Copied!';setTimeout(()=>this.innerHTML='npx ecofuzz attack scenario.yaml',1500)">npx ecofuzz attack scenario.yaml</button>
+    </div>
+  </section>
+
+  <!-- Attack types -->
+  <section class="attacks-section" id="attacks">
+    <div class="section-label">Supported Threat Models</div>
+    <div class="attack-grid">
+      <div class="attack-card">
+        <div class="attack-card-header">
+          <div class="threat-dot critical"></div>
+          <h3>Oracle Manipulation</h3>
+        </div>
+        <p>Simulate price feed deviation attacks. Measure profit from liquidation cascades when oracle prices are pushed beyond thresholds.</p>
+        <span class="tag">Est. loss: $50K-$2M</span>
+      </div>
+      <div class="attack-card">
+        <div class="attack-card-header">
+          <div class="threat-dot critical"></div>
+          <h3>Sandwich Attack</h3>
+        </div>
+        <p>Model frontrun/backrun MEV strategies. Calculate slippage impact and attacker profit from AMM pool manipulation.</p>
+        <span class="tag">Est. loss: $100-$50K per tx</span>
+      </div>
+      <div class="attack-card">
+        <div class="attack-card-header">
+          <div class="threat-dot high"></div>
+          <h3>Flash Loan Exploit</h3>
+        </div>
+        <p>Chain flash loans with price manipulation to exploit under-collateralized lending positions.</p>
+        <span class="tag">Est. loss: $100K-$10M</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Simulator -->
+  <section class="sim-section" id="sim">
+    <div class="sim-header">
+      <div class="section-label" style="margin-bottom:0">Attack Simulator</div>
+      <div class="scenario-tabs">
+        <button class="scenario-tab active" onclick="switchScenario('oracle')">Oracle Attack</button>
+        <button class="scenario-tab" onclick="switchScenario('sandwich')">Sandwich</button>
+        <button class="scenario-tab" onclick="switchScenario('fuzz')">Genetic Fuzz</button>
+      </div>
+    </div>
+
+    <div class="sim-display">
+      <div class="sim-toolbar">
+        <div class="sim-toolbar-left">
+          <span class="sim-file">scenario: <span class="fname" id="simFilename">oracle_manipulation.yaml</span></span>
+        </div>
+        <button class="run-btn" id="runBtn" onclick="runSimulation()">▶ Execute</button>
+      </div>
+      <div class="yaml-panel">
+        <div class="yaml-code" id="yamlCode"></div>
+        <div class="sim-output" id="simOutput">
+          <span style="color:var(--text-dim)">Click Execute to run attack simulation...</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- How it works -->
+  <section class="how-section" id="how">
+    <div class="section-label">How It Works</div>
+    <div class="how-steps">
+      <div class="how-step">
+        <div class="step-num">01</div>
+        <div class="step-content">
+          <h4>Write Attack Scenario</h4>
+          <p>Define attack steps in YAML — manipulation type, target parameters, invariant checks. Templates included for common DeFi exploits.</p>
+        </div>
+      </div>
+      <div class="how-step">
+        <div class="step-num">02</div>
+        <div class="step-content">
+          <h4>Execute Simulation</h4>
+          <p>Run <code>ecofuzz attack scenario.yaml</code> — each step simulates the economic action, tracks profit, and checks protocol invariants.</p>
+        </div>
+      </div>
+      <div class="how-step">
+        <div class="step-num">03</div>
+        <div class="step-content">
+          <h4>Evolve with Genetic Fuzzer</h4>
+          <p>Run <code>ecofuzz fuzz scenario.yaml</code> — the genetic algorithm evolves attack parameters over 100 generations to find maximum-damage configurations.</p>
+        </div>
+      </div>
+      <div class="how-step">
+        <div class="step-num">04</div>
+        <div class="step-content">
+          <h4>Generate Report</h4>
+          <p>Run <code>ecofuzz report</code> — get a severity-rated vulnerability report with estimated losses and attack paths. Export as JSON.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="footer">
+    EconomicFuzz — open-source DeFi security research tool. Use responsibly.
+  </div>
+
+  <script>
+    const SCENARIOS = {
+      oracle: {
+        filename: 'oracle_manipulation.yaml',
+        yaml: `<span class="comment"># Oracle Manipulation Attack</span>
+<span class="key">name:</span> <span class="str">oracle_manipulation_basic</span>
+<span class="key">type:</span> <span class="str">oracle_manipulation</span>
+
+<span class="key">params:</span>
+  <span class="key">target_pair:</span> <span class="str">SOL/USDC</span>
+  <span class="key">deviation_pct:</span> <span class="num">45</span>
+  <span class="key">duration_slots:</span> <span class="num">12</span>
+  <span class="key">initial_price:</span> <span class="num">150.00</span>
+
+<span class="key">steps:</span>
+  - <span class="key">action:</span> <span class="str">manipulate_oracle</span>
+    <span class="key">new_price:</span> <span class="num">82.50</span>
+  - <span class="key">action:</span> <span class="str">execute_liquidation</span>
+    <span class="key">positions:</span> <span class="num">24</span>
+  - <span class="key">action:</span> <span class="str">restore_price</span>
+
+<span class="key">invariants:</span>
+  - <span class="str">pool_solvent</span>
+  - <span class="str">oracle_recovers</span>`,
+        output: [
+          { d: 300, t: '<span class="d">$ ecofuzz attack oracle_manipulation.yaml</span>' },
+          { d: 500, t: '' },
+          { d: 200, t: '  executing: <span class="w">oracle_manipulation_basic</span>' },
+          { d: 150, t: '  type: <span class="o">oracle_manipulation</span> | steps: 3' },
+          { d: 100, t: '  <span class="d">──────────────────────────────────────</span>' },
+          { d: 400, t: '  <span class="step-ok">step 0: manipulate_oracle</span>' },
+          { d: 150, t: '    SOL/USDC: $150.00 → <span class="r">$82.50</span> (-45%)' },
+          { d: 150, t: '    profit: <span class="profit">$400.00</span>' },
+          { d: 400, t: '  <span class="step-ok">step 1: execute_liquidation</span>' },
+          { d: 150, t: '    positions liquidated: <span class="r">24</span>' },
+          { d: 400, t: '  <span class="step-ok">step 2: restore_price</span>' },
+          { d: 150, t: '    SOL/USDC: $82.50 → <span class="g">$150.00</span>' },
+          { d: 100, t: '  <span class="d">──────────────────────────────────────</span>' },
+          { d: 200, t: '  total profit:   <span class="profit">$400.00</span>' },
+          { d: 150, t: '  invariants:     <span class="g">2/2 passed</span>' },
+          { d: 100, t: '  duration:       <span class="d">12 slots</span>' },
+          { d: 300, t: '' },
+          { d: 200, t: '  <span class="tag-crit">CRITICAL</span> Protocol vulnerable to oracle manipulation' },
+          { d: 200, t: '  <span class="d">Recommended: Add TWAP oracle, price deviation circuit breaker</span>' },
+        ],
+      },
+      sandwich: {
+        filename: 'sandwich_attack.yaml',
+        yaml: `<span class="comment"># Sandwich Attack (MEV)</span>
+<span class="key">name:</span> <span class="str">sandwich_basic</span>
+<span class="key">type:</span> <span class="str">sandwich</span>
+
+<span class="key">params:</span>
+  <span class="key">pool:</span> <span class="str">SOL/USDC Raydium</span>
+  <span class="key">victim_size:</span> <span class="num">5000</span>
+  <span class="key">pool_liquidity:</span> <span class="num">2000000</span>
+  <span class="key">fee_bps:</span> <span class="num">30</span>
+
+<span class="key">steps:</span>
+  - <span class="key">action:</span> <span class="str">frontrun_buy</span>
+    <span class="key">amount:</span> <span class="num">15000</span>
+  - <span class="key">action:</span> <span class="str">victim_swap</span>
+  - <span class="key">action:</span> <span class="str">backrun_sell</span>
+
+<span class="key">invariants:</span>
+  - <span class="str">pool_balanced</span>
+  - <span class="str">no_revert</span>`,
+        output: [
+          { d: 300, t: '<span class="d">$ ecofuzz attack sandwich_attack.yaml</span>' },
+          { d: 500, t: '' },
+          { d: 200, t: '  executing: <span class="w">sandwich_basic</span>' },
+          { d: 150, t: '  type: <span class="o">sandwich</span> | steps: 3' },
+          { d: 100, t: '  <span class="d">──────────────────────────────────────</span>' },
+          { d: 400, t: '  <span class="step-ok">step 0: frontrun_buy</span>' },
+          { d: 150, t: '    buy 15,000 USDC → SOL (ahead of victim)' },
+          { d: 150, t: '    profit: <span class="profit">$0.68</span>' },
+          { d: 400, t: '  <span class="step-ok">step 1: victim_swap</span>' },
+          { d: 150, t: '    victim swaps 5,000 USDC → SOL at <span class="r">worse price</span>' },
+          { d: 150, t: '    slippage: <span class="r">+0.37%</span> (extra $18.50 paid)' },
+          { d: 400, t: '  <span class="step-ok">step 2: backrun_sell</span>' },
+          { d: 150, t: '    sell SOL → 15,003.56 USDC' },
+          { d: 150, t: '    profit: <span class="profit">$3.56</span>' },
+          { d: 100, t: '  <span class="d">──────────────────────────────────────</span>' },
+          { d: 200, t: '  total profit:   <span class="profit">$4.24</span>' },
+          { d: 150, t: '  victim loss:    <span class="r">$18.50</span> extra slippage' },
+          { d: 150, t: '  invariants:     <span class="g">2/2 passed</span>' },
+          { d: 300, t: '' },
+          { d: 200, t: '  <span class="tag-med">MEDIUM</span> Pool susceptible to sandwich MEV' },
+          { d: 200, t: '  <span class="d">Recommended: Increase min pool liquidity, add MEV protection</span>' },
+        ],
+      },
+      fuzz: {
+        filename: 'oracle_manipulation.yaml',
+        yaml: `<span class="comment"># Genetic Fuzzer Config</span>
+<span class="comment"># Evolves attack parameters to find</span>
+<span class="comment"># maximum-damage configurations</span>
+
+<span class="key">mode:</span> <span class="str">genetic_fuzz</span>
+<span class="key">base_scenario:</span> <span class="str">oracle_manipulation</span>
+
+<span class="key">genetic:</span>
+  <span class="key">population:</span> <span class="num">50</span>
+  <span class="key">generations:</span> <span class="num">100</span>
+  <span class="key">mutation_rate:</span> <span class="num">0.15</span>
+  <span class="key">crossover_rate:</span> <span class="num">0.7</span>
+
+<span class="key">fuzz_params:</span>
+  <span class="key">deviation_pct:</span>
+    <span class="key">min:</span> <span class="num">5</span>
+    <span class="key">max:</span> <span class="num">95</span>
+  <span class="key">duration_slots:</span>
+    <span class="key">min:</span> <span class="num">1</span>
+    <span class="key">max:</span> <span class="num">50</span>
+
+<span class="key">fitness:</span> <span class="str">maximize_profit</span>`,
+        output: [
+          { d: 300, t: '<span class="d">$ ecofuzz fuzz oracle_manipulation.yaml</span>' },
+          { d: 500, t: '' },
+          { d: 200, t: '  genetic fuzzer — <span class="w">oracle_manipulation_basic</span>' },
+          { d: 150, t: '  strategy: <span class="o">genetic</span> | pop: 50 | gen: 100' },
+          { d: 100, t: '  <span class="d">──────────────────────────────────────</span>' },
+          { d: 300, t: '' },
+          { d: 200, t: '  <span class="d">gen  1:</span> best fitness <span class="y">142.30</span>  avg <span class="d">89.12</span>' },
+          { d: 200, t: '  <span class="d">gen 10:</span> best fitness <span class="y">298.44</span>  avg <span class="d">201.33</span>' },
+          { d: 200, t: '  <span class="d">gen 25:</span> best fitness <span class="o">445.21</span>  avg <span class="d">312.67</span>' },
+          { d: 200, t: '  <span class="d">gen 50:</span> best fitness <span class="o">612.88</span>  avg <span class="d">489.20</span>' },
+          { d: 200, t: '  <span class="d">gen 75:</span> best fitness <span class="r">689.55</span>  avg <span class="d">601.44</span>' },
+          { d: 200, t: '  <span class="d">gen100:</span> best fitness <span class="r">718.92</span>  avg <span class="d">644.31</span>  <span class="g">converged</span>' },
+          { d: 300, t: '' },
+          { d: 100, t: '  <span class="w">═══════════════════════════════════════</span>' },
+          { d: 100, t: '  <span class="w">results:</span>' },
+          { d: 150, t: '  generations:     <span class="w">100</span>' },
+          { d: 150, t: '  total attacks:   <span class="w">5,000</span>' },
+          { d: 150, t: '  profitable:      <span class="r">5,000</span> (100%)' },
+          { d: 150, t: '  best fitness:    <span class="r">718.92</span>' },
+          { d: 200, t: '  best params:' },
+          { d: 150, t: '    deviation_pct:    <span class="o">89.87</span>' },
+          { d: 150, t: '    duration_slots:   <span class="o">40.63</span>' },
+          { d: 100, t: '  <span class="w">═══════════════════════════════════════</span>' },
+          { d: 300, t: '' },
+          { d: 200, t: '  <span class="tag-crit">CRITICAL</span> All 5,000 attack variations profitable' },
+          { d: 200, t: '  <span class="d">Protocol has no effective defense against this attack vector</span>' },
+        ],
+      },
+    };
+
+    let currentScenario = 'oracle';
+    let running = false;
+
+    function switchScenario(name) {
+      if (running) return;
+      currentScenario = name;
+      document.querySelectorAll('.scenario-tab').forEach(t => t.classList.remove('active'));
+      event.target.classList.add('active');
+      document.getElementById('simFilename').textContent = SCENARIOS[name].filename;
+      document.getElementById('yamlCode').innerHTML = SCENARIOS[name].yaml;
+      document.getElementById('simOutput').innerHTML = '<span style="color:var(--text-dim)">Click Execute to run attack simulation...</span>';
+    }
+
+    function runSimulation() {
+      if (running) return;
+      running = true;
+      const btn = document.getElementById('runBtn');
+      btn.classList.add('running');
+      btn.textContent = '● Running...';
+
+      const output = document.getElementById('simOutput');
+      output.innerHTML = '';
+
+      const steps = SCENARIOS[currentScenario].output;
+      let i = 0;
+
+      function next() {
+        if (i >= steps.length) {
+          btn.classList.remove('running');
+          btn.textContent = '▶ Execute';
+          running = false;
+          return;
+        }
+        const step = steps[i++];
+        setTimeout(() => {
+          output.innerHTML += (step.t === '' ? '<br>' : step.t + '<br>');
+          output.scrollTop = output.scrollHeight;
+          next();
+        }, step.d);
+      }
+
+      next();
+    }
+
+    // Init
+    document.getElementById('yamlCode').innerHTML = SCENARIOS.oracle.yaml;
+  </script>
+</body>
+</html>
