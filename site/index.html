@@ -1,756 +1,1599 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>EconomicFuzz — DeFi Attack Simulator</title>
-  <link href="https://fonts.googleapis.com/css2?family=Anonymous+Pro:wght@400;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
-  <style>
-    :root {
-      --bg: #0c0c0f;
-      --panel: #141418;
-      --panel-hover: #1a1a20;
-      --border: #2a2a32;
-      --red: #ff2d55;
-      --red-dim: #cc1a3a;
-      --orange: #ff9500;
-      --yellow: #ffd60a;
-      --green: #30d158;
-      --blue: #0a84ff;
-      --text: #e5e5ea;
-      --text-dim: #636366;
-      --mono: 'Anonymous Pro', monospace;
-      --sans: 'Inter', sans-serif;
-    }
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#f5f1ea">
+<title>INCIDENT-001 · A DeFi Post-Mortem — EconomicFuzz</title>
+<meta name="description" content="EconomicFuzz: an economic attack simulator for Solana. Read the forensic post-mortem of INCIDENT-001 — then run the same simulation locally.">
 
-    * { margin:0; padding:0; box-sizing:border-box; }
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT,WONK@9..144,300..900,0..100,0..1&family=Newsreader:ital,opsz,wght@0,6..72,300..700;1,6..72,300..700&family=Martian+Mono:wght@300..700&display=swap" rel="stylesheet">
 
-    body {
-      background: var(--bg);
-      color: var(--text);
-      font-family: var(--sans);
-      line-height: 1.6;
-    }
+<style>
+  :root{
+    --paper:#f5f1ea;
+    --paper-2:#efe8dc;
+    --paper-edge:#e6dcc7;
+    --ink:#0e1822;
+    --ink-2:#243241;
+    --ink-soft:#52607a;
+    --red:#9b1c1c;
+    --red-deep:#6b1212;
+    --amber:#c89b3a;
+    --amber-soft:#e6c87a;
+    --stamp:#b52a2a;
+    --rule:#1a2430;
+    --grid:rgba(14,24,34,.08);
 
-    /* Threat level strip */
-    .threat-strip {
-      height: 3px;
-      background: linear-gradient(90deg, var(--green) 0%, var(--yellow) 30%, var(--orange) 60%, var(--red) 100%);
-      position: sticky;
-      top: 0;
-      z-index: 100;
-    }
+    --display:"Fraunces", "Times New Roman", serif;
+    --body:"Newsreader", Georgia, serif;
+    --mono:"Martian Mono", "IBM Plex Mono", ui-monospace, monospace;
+  }
 
-    /* Header */
-    .header {
-      padding: 14px 28px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      border-bottom: 1px solid var(--border);
-      background: rgba(12,12,15,0.95);
-      backdrop-filter: blur(10px);
-      position: sticky;
-      top: 3px;
-      z-index: 50;
-    }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{background:var(--paper);color:var(--ink)}
+  html{scroll-behavior:auto}
 
-    .logo {
-      font-family: var(--mono);
-      font-weight: 700;
-      font-size: 15px;
-      color: var(--red);
-      letter-spacing: 0.5px;
-    }
+  body{
+    font-family:var(--body);
+    font-size:18px;
+    line-height:1.65;
+    font-feature-settings:"onum","liga","kern";
+    background:
+      radial-gradient(1400px 800px at 15% 0%, #fbf6eb 0%, transparent 60%),
+      radial-gradient(1200px 900px at 100% 40%, #ece2cb 0%, transparent 55%),
+      var(--paper);
+    overflow-x:hidden;
+  }
 
-    .logo span { color: var(--text-dim); }
+  body::before{
+    content:"";
+    position:fixed;inset:0;pointer-events:none;z-index:1;
+    background:
+      repeating-linear-gradient(0deg, rgba(14,24,34,.012) 0 1px, transparent 1px 3px),
+      repeating-linear-gradient(90deg, rgba(14,24,34,.012) 0 1px, transparent 1px 3px);
+    mix-blend-mode:multiply;
+  }
+  body::after{
+    content:"";
+    position:fixed;inset:-50%;pointer-events:none;z-index:2;opacity:.35;
+    background:
+      radial-gradient(2px 2px at 23% 41%, rgba(14,24,34,.18), transparent 60%),
+      radial-gradient(1px 1px at 61% 73%, rgba(14,24,34,.2), transparent 60%),
+      radial-gradient(2px 1px at 78% 18%, rgba(107,18,18,.14), transparent 60%),
+      radial-gradient(1px 1px at 11% 82%, rgba(14,24,34,.16), transparent 60%),
+      radial-gradient(2px 2px at 44% 57%, rgba(14,24,34,.12), transparent 60%);
+    background-size:320px 320px;
+    mix-blend-mode:multiply;
+    animation:grain 6s steps(6) infinite;
+  }
+  @keyframes grain{
+    0%{transform:translate(0,0)}
+    20%{transform:translate(-3%,2%)}
+    40%{transform:translate(2%,-1%)}
+    60%{transform:translate(-1%,3%)}
+    80%{transform:translate(3%,-2%)}
+    100%{transform:translate(0,0)}
+  }
 
-    .header-links {
-      display: flex;
-      gap: 20px;
-      align-items: center;
-    }
+  ::selection{background:var(--amber-soft);color:var(--ink)}
 
-    .header-links a {
-      font-size: 12px;
-      color: var(--text-dim);
-      text-decoration: none;
-      transition: color 0.2s;
-    }
+  a{color:inherit;text-decoration:none}
+  .u-mono{font-family:var(--mono);font-weight:400;font-size:.72rem;letter-spacing:.12em;text-transform:uppercase}
+  .rule{height:1px;background:var(--rule)}
+  .rule.thick{height:3px;background:var(--ink);box-shadow:0 4px 0 0 var(--ink)}
 
-    .header-links a:hover { color: var(--red); }
+  .container{max-width:1240px;margin:0 auto;padding:0 28px;position:relative;z-index:3}
 
-    /* Hero */
-    .hero {
-      padding: 80px 28px 50px;
-      text-align: center;
-      position: relative;
-      overflow: hidden;
-    }
+  /* ─── Ticker tape ─── */
+  .ticker{
+    background:var(--ink);color:var(--paper);
+    border-bottom:1px solid var(--ink);
+    overflow:hidden;white-space:nowrap;
+    font-family:var(--mono);font-size:.66rem;letter-spacing:.18em;text-transform:uppercase;
+    padding:7px 0;position:relative;z-index:5;
+  }
+  .ticker-track{display:inline-block;animation:tick 42s linear infinite;padding-left:100%}
+  .ticker-track span{padding:0 22px;display:inline-block}
+  .ticker-track em{color:var(--amber);font-style:normal;font-weight:700;letter-spacing:.2em}
+  .ticker-track i{color:var(--red);font-style:normal;padding:0 14px;font-size:.8rem;transform:translateY(-1px);display:inline-block}
+  @keyframes tick{from{transform:translateX(0)}to{transform:translateX(-100%)}}
 
-    .hero::before {
-      content: '';
-      position: absolute;
-      top: -50%;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 600px;
-      height: 600px;
-      background: radial-gradient(circle, rgba(255,45,85,0.06) 0%, transparent 70%);
-      pointer-events: none;
-    }
+  /* ─── Asterism divider ─── */
+  .asterism{
+    text-align:center;padding:60px 0;font-family:var(--display);font-size:26px;
+    color:var(--ink);letter-spacing:2em;line-height:1;opacity:.55;
+    font-variation-settings:"SOFT" 80,"WONK" 1;
+  }
+  .asterism::before{content:"❋   ❋   ❋"}
 
-    .hero-badge {
-      display: inline-block;
-      font-family: var(--mono);
-      font-size: 11px;
-      color: var(--red);
-      background: rgba(255,45,85,0.1);
-      border: 1px solid rgba(255,45,85,0.2);
-      padding: 4px 14px;
-      border-radius: 20px;
-      margin-bottom: 24px;
-      letter-spacing: 1px;
-    }
+  /* ─── Halftone patch ─── */
+  .halftone{
+    background-image: radial-gradient(circle, var(--ink) 28%, transparent 29%);
+    background-size: 6px 6px;
+    background-position: 0 0;
+  }
 
-    .hero h1 {
-      font-size: 52px;
-      font-weight: 800;
-      letter-spacing: -1px;
-      margin-bottom: 16px;
-      color: white;
-    }
+  /* ─── Masthead ─── */
+  .masthead{
+    padding:22px 0 12px;
+    border-bottom:1px solid var(--rule);
+    position:relative;
+  }
+  .masthead-top{
+    display:grid;
+    grid-template-columns:1fr auto 1fr;
+    gap:18px;
+    align-items:center;
+    margin-bottom:18px;
+  }
+  .mast-meta{font-family:var(--mono);font-size:.68rem;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-soft)}
+  .mast-meta.left{justify-self:start}
+  .mast-meta.right{justify-self:end;text-align:right}
+  .mast-meta .dot{display:inline-block;width:6px;height:6px;background:var(--red);border-radius:50%;margin:0 6px;transform:translateY(-2px);animation:pulse 2.2s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
 
-    .hero h1 em {
-      font-style: normal;
-      color: var(--red);
-    }
+  .mast-seal{
+    width:58px;height:58px;border:1.5px solid var(--ink);border-radius:50%;
+    display:grid;place-items:center;font-family:var(--mono);font-size:.58rem;
+    letter-spacing:.16em;text-align:center;line-height:1.1;
+    position:relative;
+  }
+  .mast-seal::before,.mast-seal::after{
+    content:"";position:absolute;inset:-6px;border:1px solid var(--ink);border-radius:50%;opacity:.35;
+  }
+  .mast-seal::after{inset:-10px;opacity:.15}
 
-    .hero p {
-      font-size: 17px;
-      color: var(--text-dim);
-      max-width: 520px;
-      margin: 0 auto 36px;
-      line-height: 1.7;
-    }
+  .masthead-title{
+    font-family:var(--display);
+    font-weight:300;
+    font-size:clamp(48px, 11vw, 168px);
+    line-height:.88;
+    letter-spacing:-.04em;
+    text-align:center;
+    font-variation-settings:"SOFT" 20, "WONK" 0, "opsz" 144;
+    color:var(--ink);
+  }
+  .masthead-title em{font-style:italic;font-weight:400;color:var(--red)}
 
-    .hero-actions {
-      display: flex;
-      gap: 12px;
-      justify-content: center;
-    }
+  .masthead-sub{
+    display:grid;grid-template-columns:1fr auto 1fr;gap:24px;align-items:center;
+    padding:14px 0 6px;border-top:1px solid var(--rule);margin-top:18px;
+  }
+  .masthead-sub > div{font-family:var(--mono);font-size:.7rem;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-soft)}
+  .masthead-sub .center{text-align:center;color:var(--ink)}
+  .masthead-sub .right{text-align:right}
 
-    .btn-primary {
-      font-family: var(--sans);
-      font-size: 13px;
-      font-weight: 600;
-      background: var(--red);
-      color: white;
-      border: none;
-      padding: 10px 24px;
-      border-radius: 8px;
-      cursor: pointer;
-      transition: all 0.2s;
-    }
+  .nav{
+    display:flex;gap:22px;justify-content:center;
+    padding:10px 0;
+    border-top:1px solid var(--rule);
+    border-bottom:3px double var(--ink);
+    font-family:var(--mono);font-size:.7rem;letter-spacing:.16em;text-transform:uppercase;
+  }
+  .nav a{position:relative;padding:4px 2px;transition:color .2s}
+  .nav a:hover{color:var(--red)}
+  .nav a.active{color:var(--red)}
+  .nav a.active::after{content:"";position:absolute;left:0;right:0;bottom:-11px;height:3px;background:var(--red)}
 
-    .btn-primary:hover { background: var(--red-dim); transform: translateY(-1px); }
+  /* ─── Hero (pinned) ─── */
+  .hero{
+    position:relative;
+    padding:70px 0 100px;
+    overflow:hidden;
+  }
+  .hero-inner{display:grid;grid-template-columns:1.1fr .9fr;gap:48px;align-items:end}
 
-    .btn-secondary {
-      font-family: var(--mono);
-      font-size: 12px;
-      background: var(--panel);
-      color: var(--text);
-      border: 1px solid var(--border);
-      padding: 10px 20px;
-      border-radius: 8px;
-      cursor: pointer;
-      transition: all 0.2s;
-      position: relative;
-    }
+  .hero-kicker{
+    font-family:var(--mono);font-size:.72rem;letter-spacing:.2em;text-transform:uppercase;
+    color:var(--red);display:flex;align-items:center;gap:14px;margin-bottom:26px;
+  }
+  .hero-kicker::before{content:"";display:inline-block;width:42px;height:1px;background:var(--red)}
+  .hero-kicker .stamp{
+    padding:4px 10px;border:1.5px solid var(--red);color:var(--red);
+    letter-spacing:.14em;font-size:.62rem;transform:rotate(-2deg);
+    background:rgba(155,28,28,.04);
+  }
 
-    .btn-secondary:hover { border-color: var(--text-dim); }
+  .hero-title{
+    font-family:var(--display);
+    font-weight:350;
+    font-variation-settings:"SOFT" 0, "WONK" 1, "opsz" 144;
+    font-size:clamp(54px, 8.2vw, 132px);
+    line-height:.94;
+    letter-spacing:-.035em;
+    color:var(--ink);
+  }
+  .hero-title .redact{
+    position:relative;display:inline-block;padding:0 .18em;color:var(--paper);
+    background:var(--ink);
+  }
+  .hero-title .redact::before{
+    content:"";position:absolute;inset:0;background:var(--ink);transform:skewX(-6deg);z-index:-1;
+  }
+  .hero-title em{
+    font-style:italic;font-weight:400;color:var(--red);
+    font-variation-settings:"SOFT" 80, "WONK" 1, "opsz" 144;
+  }
+  .hero-title .brush{
+    background:linear-gradient(180deg, transparent 62%, var(--amber-soft) 62%, var(--amber-soft) 90%, transparent 90%);
+    padding:0 .05em;
+  }
 
-    /* Attack types */
-    .attacks-section {
-      max-width: 900px;
-      margin: 20px auto 50px;
-      padding: 0 28px;
-    }
+  .hero-lede{
+    font-family:var(--body);font-weight:400;font-style:italic;
+    font-size:26px;line-height:1.4;color:var(--ink-2);
+    margin-top:32px;max-width:34ch;
+  }
+  .hero-lede::first-letter{font-family:var(--display);font-weight:400;font-size:1em}
 
-    .section-label {
-      font-family: var(--mono);
-      font-size: 11px;
-      color: var(--text-dim);
-      text-transform: uppercase;
-      letter-spacing: 2px;
-      margin-bottom: 20px;
-    }
+  .hero-side{padding-bottom:6px;display:flex;flex-direction:column;gap:24px}
+  .hero-byline{
+    font-family:var(--mono);font-size:.7rem;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-soft);
+    padding-bottom:12px;border-bottom:1px solid var(--rule);
+  }
 
-    .attack-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 14px;
-    }
+  /* Oracle price chart card */
+  .chart-card{
+    background:var(--ink);color:var(--paper);position:relative;
+    padding:20px 22px 16px;
+    box-shadow:12px 12px 0 -1px var(--paper-edge), 12px 12px 0 0 var(--ink);
+  }
+  .chart-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px;font-family:var(--mono);font-size:.6rem;letter-spacing:.18em;text-transform:uppercase}
+  .chart-head .ch-ttl{color:var(--amber)}
+  .chart-head .ch-sub{color:rgba(245,241,234,.55)}
+  .chart-svg{width:100%;height:180px;display:block}
+  .chart-axis{font-family:var(--mono);font-size:9px;fill:rgba(245,241,234,.45);letter-spacing:.1em}
+  .chart-foot{
+    display:flex;justify-content:space-between;margin-top:10px;
+    font-family:var(--mono);font-size:.6rem;letter-spacing:.14em;color:rgba(245,241,234,.5);text-transform:uppercase
+  }
+  .chart-foot b{color:var(--red);font-family:var(--display);font-size:18px;font-weight:400;letter-spacing:-.01em;text-transform:none;display:block;line-height:1;margin-top:2px}
+  .chart-scrubber{
+    position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--amber);opacity:0;pointer-events:none;
+    box-shadow:0 0 12px rgba(200,155,58,.6);
+  }
 
-    .attack-card {
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 20px;
-      transition: all 0.3s;
-      cursor: default;
-    }
+  .hero-meta-grid{
+    display:grid;grid-template-columns:repeat(2,1fr);gap:18px 26px;
+    padding-top:6px;
+  }
+  .hero-meta-grid dt{font-family:var(--mono);font-size:.64rem;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:4px}
+  .hero-meta-grid dd{font-family:var(--display);font-weight:400;font-size:28px;line-height:1;letter-spacing:-.02em;color:var(--ink)}
+  .hero-meta-grid dd.red{color:var(--red)}
+  .hero-meta-grid dd small{display:block;font-family:var(--mono);font-size:.6rem;letter-spacing:.1em;color:var(--ink-soft);margin-top:6px;font-weight:400;text-transform:uppercase}
 
-    .attack-card:hover {
-      border-color: rgba(255,45,85,0.3);
-      background: var(--panel-hover);
-    }
+  .hero-actions{
+    display:flex;gap:12px;align-items:center;margin-top:52px;
+    padding-top:18px;border-top:3px double var(--ink);
+  }
+  .btn{
+    font-family:var(--mono);font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;
+    padding:14px 22px;border:1.5px solid var(--ink);background:var(--paper);color:var(--ink);
+    cursor:pointer;position:relative;transition:all .25s;display:inline-flex;align-items:center;gap:10px;
+  }
+  .btn:hover{background:var(--ink);color:var(--paper)}
+  .btn.primary{background:var(--ink);color:var(--paper)}
+  .btn.primary:hover{background:var(--red);border-color:var(--red)}
+  .btn.primary::before{content:"▸";font-size:.9rem}
 
-    .attack-card-header {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin-bottom: 10px;
-    }
+  .btn-copy{
+    font-family:var(--mono);font-size:.72rem;letter-spacing:.1em;
+    padding:14px 22px;border:1.5px dashed var(--ink);background:transparent;color:var(--ink);
+    cursor:pointer;position:relative;text-transform:none;display:inline-flex;align-items:center;gap:14px;
+  }
+  .btn-copy .copy-label{font-family:var(--mono);font-size:.58rem;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-soft)}
+  .btn-copy.done .copy-label{color:var(--red)}
 
-    .threat-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-    }
+  /* ─── Article intro ─── */
+  .article{
+    position:relative;padding:80px 0 40px;border-top:1px solid var(--rule);
+  }
+  .article-grid{display:grid;grid-template-columns:180px 1fr 200px;gap:36px}
+  .article-drop{font-family:var(--display);font-weight:400;font-size:120px;line-height:.78;letter-spacing:-.03em;color:var(--red);text-align:right;padding-top:6px}
+  .article-body{max-width:62ch;font-size:19px;line-height:1.7}
+  .article-body > p + p{margin-top:18px;text-indent:2em}
+  .article-body .pullout{
+    float:right;width:42%;margin:6px 0 10px 28px;padding:16px 18px;
+    background:var(--paper-2);border-left:3px solid var(--red);
+    font-family:var(--display);font-style:italic;font-size:22px;line-height:1.35;color:var(--ink-2);
+  }
+  .article-body .pullout cite{display:block;margin-top:10px;font-style:normal;font-family:var(--mono);font-size:.64rem;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-soft)}
+  .article-aside{font-family:var(--mono);font-size:.68rem;letter-spacing:.08em;line-height:1.7;color:var(--ink-soft)}
+  .article-aside strong{display:block;color:var(--red);letter-spacing:.16em;text-transform:uppercase;margin-bottom:8px;font-weight:700;font-size:.62rem}
+  .article-aside + .article-aside{margin-top:22px}
 
-    .threat-dot.critical { background: var(--red); box-shadow: 0 0 8px var(--red); }
-    .threat-dot.high { background: var(--orange); box-shadow: 0 0 8px var(--orange); }
-    .threat-dot.medium { background: var(--yellow); box-shadow: 0 0 8px var(--yellow); }
+  /* ─── Sticky split — EXHIBIT A ─── */
+  .exhibit{
+    position:relative;padding:90px 0;border-top:3px double var(--ink);border-bottom:3px double var(--ink);
+    background:linear-gradient(180deg, var(--paper) 0%, var(--paper-2) 100%);
+  }
+  .exhibit-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:40px}
+  .exhibit-head h2{
+    font-family:var(--display);font-weight:400;font-size:clamp(36px,5vw,64px);letter-spacing:-.02em;
+    font-variation-settings:"SOFT" 40,"WONK" 1,"opsz" 96;
+  }
+  .exhibit-head h2 em{font-style:italic;color:var(--red)}
+  .exhibit-head .exhibit-tag{
+    font-family:var(--mono);font-size:.7rem;letter-spacing:.2em;text-transform:uppercase;
+    padding:6px 14px;border:1.5px solid var(--red);color:var(--red);transform:rotate(-1.5deg);
+  }
 
-    .attack-card h3 {
-      font-size: 14px;
-      font-weight: 600;
-      color: white;
-    }
+  .split{display:grid;grid-template-columns:1fr 1fr;gap:40px;align-items:start}
+  .split > *{min-width:0}
+  .split-left{position:sticky;top:100px;padding-right:10px}
+  .split-left h3{font-family:var(--display);font-weight:400;font-size:42px;line-height:1.05;letter-spacing:-.02em;margin-bottom:18px}
+  .split-left p{font-size:17px;line-height:1.65;margin-bottom:14px;color:var(--ink-2)}
+  .split-left .figure-stat{
+    display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:28px;
+    padding:18px;border:1px solid var(--rule);background:var(--paper);
+  }
+  .figure-stat .s-val{font-family:var(--display);font-size:28px;font-weight:400;color:var(--red);display:block;line-height:1}
+  .figure-stat .s-lbl{font-family:var(--mono);font-size:.58rem;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-soft);margin-top:6px;display:block}
 
-    .attack-card p {
-      font-size: 12px;
-      color: var(--text-dim);
-      line-height: 1.6;
-    }
+  .evidence-card{
+    background:var(--ink);color:var(--paper);
+    border:1px solid var(--ink);
+    position:relative;
+    box-shadow:14px 14px 0 -1px var(--paper-edge), 14px 14px 0 0 var(--ink);
+  }
+  .evidence-card-head{
+    display:flex;justify-content:space-between;align-items:center;
+    padding:12px 18px;border-bottom:1px solid rgba(245,241,234,.18);
+    font-family:var(--mono);font-size:.62rem;letter-spacing:.16em;text-transform:uppercase;
+  }
+  .evidence-card-head .dotgrp{display:flex;gap:6px}
+  .evidence-card-head .dotgrp i{width:8px;height:8px;background:rgba(245,241,234,.25);border-radius:50%;display:block}
+  .evidence-card-head .dotgrp i:first-child{background:var(--red)}
+  .evidence-card-body{padding:22px 22px 26px;font-family:var(--mono);font-size:13px;line-height:1.75;overflow-x:auto}
+  .evidence-card-body .tok-key{color:var(--amber)}
+  .evidence-card-body .tok-str{color:#e7d9b6}
+  .evidence-card-body .tok-num{color:#ff9b7a}
+  .evidence-card-body .tok-com{color:rgba(245,241,234,.38);font-style:italic}
+  .evidence-card-body .tok-tag{color:#ff6b6b}
+  .type-cursor{display:inline-block;width:8px;height:14px;background:var(--paper);vertical-align:-2px;animation:blink 1s steps(2) infinite}
+  @keyframes blink{0%,50%{opacity:1}51%,100%{opacity:0}}
 
-    .attack-card .tag {
-      display: inline-block;
-      font-family: var(--mono);
-      font-size: 10px;
-      padding: 2px 8px;
-      border-radius: 4px;
-      margin-top: 10px;
-      background: rgba(255,45,85,0.08);
-      color: var(--red);
-    }
+  /* ─── Horizontal scroll — Attack Walkthrough ─── */
+  .walkthrough{
+    position:relative;background:var(--ink);color:var(--paper);overflow:hidden;
+  }
+  .walkthrough-header{
+    position:absolute;top:28px;left:0;right:0;z-index:4;pointer-events:none;
+    display:flex;justify-content:space-between;padding:0 36px;
+  }
+  .walkthrough-header .wh-label{
+    font-family:var(--mono);font-size:.66rem;letter-spacing:.2em;text-transform:uppercase;color:var(--amber)
+  }
+  .walkthrough-header .wh-count{
+    font-family:var(--display);font-weight:300;font-size:28px;letter-spacing:-.02em;color:var(--paper)
+  }
+  .walkthrough-header .wh-count em{color:var(--amber);font-style:normal}
 
-    /* Simulation section */
-    .sim-section {
-      max-width: 900px;
-      margin: 0 auto 60px;
-      padding: 0 28px;
-    }
+  .horz{display:flex;width:max-content;height:100vh;will-change:transform}
+  .horz-panel{
+    width:100vw;height:100vh;flex-shrink:0;position:relative;
+    display:grid;place-items:center;padding:120px 6vw 90px;
+    border-right:1px solid rgba(245,241,234,.08);
+  }
+  .horz-panel.intro{
+    background:
+      radial-gradient(700px 500px at 50% 50%, rgba(245,241,234,.06), transparent 70%),
+      var(--ink);
+  }
+  .horz-panel.intro .intro-title{
+    font-family:var(--display);font-weight:300;font-size:clamp(60px,10vw,180px);
+    line-height:.9;letter-spacing:-.04em;text-align:center;
+    font-variation-settings:"SOFT" 20,"WONK" 1,"opsz" 144;
+  }
+  .horz-panel.intro .intro-title em{font-style:italic;color:var(--amber)}
+  .horz-panel.intro .intro-sub{
+    font-family:var(--mono);font-size:.75rem;letter-spacing:.3em;text-transform:uppercase;
+    text-align:center;margin-top:24px;color:rgba(245,241,234,.6);
+  }
 
-    .sim-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 16px;
-    }
+  .step-inner{display:grid;grid-template-columns:140px 1.1fr 1fr;gap:40px;width:100%;max-width:1400px;align-items:center}
+  .step-num{align-self:start;padding-top:2px}
+  .step-num strong{
+    font-family:var(--display);font-weight:300;font-size:128px;line-height:.9;letter-spacing:-.04em;
+    color:var(--paper);display:block;margin-bottom:10px;
+    font-variation-settings:"SOFT" 40,"WONK" 1,"opsz" 144;
+  }
+  .step-num .step-slot{
+    font-family:var(--mono);font-size:.62rem;letter-spacing:.2em;text-transform:uppercase;color:var(--amber);
+    padding-top:10px;border-top:1px solid rgba(200,155,58,.4);display:block;
+  }
 
-    .scenario-tabs {
-      display: flex;
-      gap: 8px;
-    }
+  .step-body h3{
+    font-family:var(--display);font-weight:300;font-size:clamp(36px,5vw,72px);line-height:1.02;letter-spacing:-.02em;
+    font-variation-settings:"SOFT" 30,"WONK" 1,"opsz" 96;
+  }
+  .step-body h3 em{font-style:italic;color:var(--amber)}
+  .step-body .step-lede{font-family:var(--body);font-size:18px;line-height:1.6;color:rgba(245,241,234,.8);margin-top:20px;max-width:40ch}
+  .step-body .step-note{font-family:var(--mono);font-size:.64rem;letter-spacing:.16em;text-transform:uppercase;color:var(--red);margin-top:28px;border-left:2px solid var(--red);padding-left:14px}
 
-    .scenario-tab {
-      font-family: var(--mono);
-      font-size: 11px;
-      padding: 6px 14px;
-      border-radius: 6px;
-      border: 1px solid var(--border);
-      background: transparent;
-      color: var(--text-dim);
-      cursor: pointer;
-      transition: all 0.2s;
-    }
+  .step-visual{
+    position:relative;height:420px;
+    background:linear-gradient(180deg, rgba(245,241,234,.03), transparent);
+    border:1px solid rgba(245,241,234,.1);
+    padding:24px;display:flex;flex-direction:column;justify-content:center;gap:14px;
+    font-family:var(--mono);font-size:12px;line-height:1.7;
+  }
+  .step-visual .sv-head{
+    display:flex;justify-content:space-between;position:absolute;top:12px;left:24px;right:24px;
+    font-size:.6rem;letter-spacing:.14em;text-transform:uppercase;color:rgba(245,241,234,.5);
+  }
+  .step-visual .sv-row{display:grid;grid-template-columns:110px 1fr auto;gap:16px;padding:6px 0;border-bottom:1px dashed rgba(245,241,234,.14)}
+  .step-visual .sv-row:last-child{border-bottom:0}
+  .step-visual .sv-k{color:var(--amber)}
+  .step-visual .sv-v{color:rgba(245,241,234,.9)}
+  .step-visual .sv-x{color:var(--red);text-align:right}
+  .step-visual .sv-bar{
+    height:22px;position:relative;background:rgba(245,241,234,.05);
+    border:1px solid rgba(245,241,234,.1);
+  }
+  .step-visual .sv-bar-fill{
+    position:absolute;inset:0 auto 0 0;width:var(--w,70%);
+    background:linear-gradient(90deg, var(--amber), var(--red));
+  }
 
-    .scenario-tab:hover { border-color: var(--text-dim); color: var(--text); }
-    .scenario-tab.active { background: var(--red); border-color: var(--red); color: white; }
+  .horz-panel.outro{
+    background:linear-gradient(180deg, var(--ink) 0%, #000 100%);text-align:center;
+  }
+  .horz-panel.outro > div{
+    max-width:min(88vw,1000px);display:flex;flex-direction:column;align-items:center;gap:36px;
+  }
+  .horz-panel.outro .outro-stamp{
+    font-family:var(--display);font-weight:300;font-size:clamp(56px,8vw,128px);line-height:.9;letter-spacing:-.035em;
+    color:var(--red);font-variation-settings:"SOFT" 50,"WONK" 1,"opsz" 144;
+    border:5px solid var(--red);padding:26px 44px;
+    text-transform:uppercase;display:inline-block;max-width:100%;
+    transform-origin:50% 50%;
+  }
+  .horz-panel.outro .outro-total{
+    font-family:var(--mono);font-size:.7rem;letter-spacing:.3em;text-transform:uppercase;color:rgba(245,241,234,.7);
+    max-width:72ch;line-height:1.7;
+  }
 
-    /* Simulation display */
-    .sim-display {
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      overflow: hidden;
-    }
+  /* ─── Fund Flow ─── */
+  .flow{padding:100px 0 80px;border-bottom:1px solid var(--rule);position:relative}
+  /* Desktop only: pull up into the tail of the walkthrough's post-pin
+     parchment so the dark→paper handoff reads as one movement, not two
+     sections. On mobile there is no pin, so the overlap would smash the
+     walkthrough's final panel into this section. */
+  @media (min-width: 961px){
+    .flow{margin-top:-50vh}
+  }
+  .flow-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:40px}
+  .flow-head h2{font-family:var(--display);font-weight:400;font-size:clamp(40px,5vw,72px);letter-spacing:-.02em}
+  .flow-head h2 em{font-style:italic;color:var(--red)}
 
-    .sim-toolbar {
-      padding: 10px 16px;
-      border-bottom: 1px solid var(--border);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-    }
+  .flow-canvas{position:relative;height:480px;border:1px solid var(--rule);background:var(--paper-2);overflow:hidden}
+  .flow-canvas svg{width:100%;height:100%;display:block}
 
-    .sim-toolbar-left {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
+  .flow-legend{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:24px}
+  .flow-legend .lg{padding:14px 16px;border-left:3px solid var(--red);background:var(--paper)}
+  .flow-legend .lg:nth-child(2){border-color:var(--amber)}
+  .flow-legend .lg:nth-child(3){border-color:var(--ink-2)}
+  .flow-legend .lg:nth-child(4){border-color:var(--red-deep)}
+  .flow-legend .lg .lg-k{font-family:var(--mono);font-size:.58rem;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-soft)}
+  .flow-legend .lg .lg-v{font-family:var(--display);font-weight:400;font-size:24px;line-height:1.1;margin-top:4px;letter-spacing:-.02em}
 
-    .sim-file {
-      font-family: var(--mono);
-      font-size: 11px;
-      color: var(--text-dim);
-    }
+  /* ─── Evidence Exhibits ─── */
+  .findings{padding:100px 0 80px;position:relative;border-bottom:3px double var(--ink)}
+  .findings-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:40px}
+  .findings-head h2{font-family:var(--display);font-weight:400;font-size:clamp(40px,5vw,72px);letter-spacing:-.02em}
+  .findings-head h2 em{font-style:italic;color:var(--red)}
 
-    .sim-file .fname { color: var(--orange); }
+  .f-table{width:100%;border-collapse:collapse;font-size:15px}
+  .f-table thead th{
+    text-align:left;font-family:var(--mono);font-size:.66rem;letter-spacing:.16em;text-transform:uppercase;
+    padding:14px 12px;border-bottom:2px solid var(--ink);color:var(--ink-soft);font-weight:400;
+  }
+  .f-table tbody tr{border-bottom:1px solid var(--rule);position:relative}
+  .f-table tbody tr:hover{background:var(--paper-2)}
+  .f-table td{padding:22px 12px;vertical-align:top;position:relative}
+  .f-table .f-sev{width:120px}
+  .f-table .f-title{width:32%}
+  .f-table .f-title b{font-family:var(--display);font-size:22px;font-weight:400;letter-spacing:-.01em;display:block;margin-bottom:4px}
+  .f-table .f-title span{font-family:var(--mono);font-size:.64rem;letter-spacing:.1em;color:var(--ink-soft)}
+  .f-table .f-desc{color:var(--ink-2);line-height:1.55}
+  .f-table .f-loss{width:130px;text-align:right;font-family:var(--display);font-size:22px;color:var(--red);letter-spacing:-.01em}
 
-    .run-btn {
-      font-family: var(--mono);
-      font-size: 11px;
-      padding: 5px 16px;
-      border-radius: 5px;
-      border: 1px solid var(--red);
-      background: rgba(255,45,85,0.1);
-      color: var(--red);
-      cursor: pointer;
-      transition: all 0.2s;
-    }
+  .sev-pill{
+    display:inline-block;font-family:var(--mono);font-size:.6rem;letter-spacing:.18em;text-transform:uppercase;
+    padding:4px 10px;border:1.5px solid;
+  }
+  .sev-pill.critical{color:#fff;background:var(--red);border-color:var(--red)}
+  .sev-pill.high{color:var(--red);border-color:var(--red)}
+  .sev-pill.medium{color:var(--ink);border-color:var(--amber);background:rgba(200,155,58,.12)}
 
-    .run-btn:hover { background: var(--red); color: white; }
-    .run-btn.running { background: var(--red); color: white; pointer-events: none; }
+  .stamp-el{
+    position:absolute;right:-10px;top:10px;
+    font-family:var(--display);font-weight:400;font-style:italic;
+    font-size:46px;color:var(--stamp);opacity:.18;
+    border:3px solid var(--stamp);padding:6px 14px;
+    transform:rotate(-12deg);letter-spacing:.02em;pointer-events:none;
+  }
 
-    /* YAML preview */
-    .yaml-panel {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      min-height: 300px;
-    }
+  /* ─── Reproduce ─── */
+  .repro{padding:100px 0;position:relative}
+  .repro-grid{display:grid;grid-template-columns:1fr 1.2fr;gap:48px;align-items:center}
+  .repro-copy h2{font-family:var(--display);font-weight:400;font-size:clamp(40px,5.5vw,80px);line-height:.98;letter-spacing:-.03em}
+  .repro-copy h2 em{font-style:italic;color:var(--red)}
+  .repro-copy p{font-size:18px;line-height:1.6;color:var(--ink-2);margin-top:22px;max-width:44ch}
+  .repro-copy .tiny{font-family:var(--mono);font-size:.64rem;letter-spacing:.14em;color:var(--ink-soft);text-transform:uppercase;margin-top:20px}
 
-    .yaml-code {
-      padding: 16px;
-      font-family: var(--mono);
-      font-size: 12px;
-      line-height: 1.9;
-      border-right: 1px solid var(--border);
-      background: #0e0e12;
-      overflow-y: auto;
-      max-height: 420px;
-    }
+  .repro-term{
+    background:var(--ink);color:var(--paper);border:1px solid var(--ink);
+    padding:22px;font-family:var(--mono);font-size:13.5px;line-height:1.85;
+    box-shadow:18px 18px 0 -1px var(--paper-edge), 18px 18px 0 0 var(--ink);
+  }
+  .repro-term .prompt{color:var(--amber)}
+  .repro-term .cmd{color:var(--paper)}
+  .repro-term .out{color:rgba(245,241,234,.65)}
+  .repro-term .ok{color:#9be9a8}
+  .repro-term .bad{color:#ff8b7a}
 
-    .yaml-code .key { color: var(--blue); }
-    .yaml-code .str { color: var(--green); }
-    .yaml-code .num { color: var(--orange); }
-    .yaml-code .comment { color: var(--text-dim); }
+  /* ─── Colophon ─── */
+  .colophon{
+    padding:70px 0 40px;border-top:3px double var(--ink);
+    background:var(--paper-2);
+  }
+  .colo-grid{display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr;gap:36px;margin-bottom:40px}
+  .colo-grid h4{font-family:var(--mono);font-size:.66rem;letter-spacing:.18em;text-transform:uppercase;color:var(--red);margin-bottom:14px}
+  .colo-grid ul{list-style:none}
+  .colo-grid li{margin-bottom:8px;font-size:14px}
+  .colo-grid li a:hover{color:var(--red)}
+  .colo-brand{font-family:var(--display);font-weight:400;font-size:38px;line-height:1;letter-spacing:-.02em;margin-bottom:12px}
+  .colo-brand em{color:var(--red);font-style:italic}
+  .colo-tag{font-size:14px;line-height:1.55;color:var(--ink-2);max-width:30ch}
 
-    .sim-output {
-      padding: 16px;
-      font-family: var(--mono);
-      font-size: 12px;
-      line-height: 1.9;
-      background: #0a0a0d;
-      overflow-y: auto;
-      max-height: 420px;
-    }
+  .colo-foot{
+    display:flex;justify-content:space-between;align-items:center;
+    padding-top:20px;border-top:1px solid var(--rule);
+    font-family:var(--mono);font-size:.64rem;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-soft);
+  }
 
-    .sim-output .g { color: var(--green); }
-    .sim-output .r { color: var(--red); }
-    .sim-output .o { color: var(--orange); }
-    .sim-output .y { color: var(--yellow); }
-    .sim-output .d { color: var(--text-dim); }
-    .sim-output .w { color: white; font-weight: 700; }
-    .sim-output .tag-crit { background: rgba(255,45,85,0.2); color: var(--red); padding: 1px 6px; border-radius: 3px; font-size: 10px; }
-    .sim-output .tag-med { background: rgba(255,213,10,0.15); color: var(--yellow); padding: 1px 6px; border-radius: 3px; font-size: 10px; }
-    .sim-output .tag-ok { background: rgba(48,209,88,0.15); color: var(--green); padding: 1px 6px; border-radius: 3px; font-size: 10px; }
+  /* ─── Responsive ─── */
+  @media (max-width:960px){
+    body{font-size:16px}
+    .container{padding:0 20px}
+    .hero{padding:40px 0 60px}
+    .hero-inner{grid-template-columns:1fr;gap:40px}
+    .hero-title{font-size:clamp(40px,10vw,72px);word-break:break-word;hyphens:auto}
+    .hero-title .redact{display:inline;padding:.04em .18em}
+    .hero-title .redact::before{display:none}
+    .hero-title .brush{background-size:100% 1.6em}
+    .hero-lede{font-size:19px;max-width:none}
+    .hero-kicker{flex-wrap:wrap;gap:10px;margin-bottom:18px}
+    .hero-kicker::before{display:none}
+    .hero-actions{flex-direction:column;align-items:stretch;gap:10px}
+    .hero-actions .btn,.hero-actions .btn-copy{width:100%;justify-content:center}
+    .article{padding:50px 0 20px}
+    .article-grid{grid-template-columns:1fr;gap:18px}
+    .article-drop{text-align:left;font-size:84px}
+    .article-body{font-size:17px}
+    .article-body > p + p{text-indent:1.4em}
+    .article-body .pullout{float:none;width:auto;margin:18px 0;font-size:19px}
+    .exhibit{padding:60px 0}
+    .exhibit-head{flex-direction:column;align-items:flex-start;gap:14px}
+    .split{grid-template-columns:1fr;gap:40px}
+    .split-left{position:static;padding-right:0}
+    .split-left h3{font-size:28px;word-break:break-word;hyphens:auto}
+    .split-left p{font-size:16px}
+    .figure-stat{grid-template-columns:repeat(3,1fr);padding:14px;gap:10px}
+    .figure-stat .s-val{font-size:22px}
+    .evidence-card{box-shadow:8px 8px 0 -1px var(--paper-edge), 8px 8px 0 0 var(--ink)}
+    .walkthrough-header{padding:0 22px;top:20px}
+    /* Counter is driven by horizontal ScrollTrigger (desktop-only). On mobile
+       it sticks at the initial value, so hide it rather than lying. */
+    .walkthrough-header .wh-count{display:none}
+    .step-inner{grid-template-columns:1fr;gap:22px}
+    .step-num{display:flex;align-items:baseline;gap:18px;padding-top:0}
+    .step-num strong{font-size:64px;margin-bottom:0}
+    .step-num .step-slot{padding-top:0;border-top:0;border-left:1px solid rgba(200,155,58,.4);padding-left:14px}
+    .step-visual{height:auto;min-height:240px;padding-top:38px}
+    .step-body h3{font-size:clamp(28px,7vw,44px)}
+    .horz-panel{padding:90px 22px 70px}
+    .horz-panel.outro .outro-stamp{padding:22px 26px;border-width:4px}
+    .flow{padding:60px 0 50px}
+    .flow-head{flex-direction:column;align-items:flex-start;gap:14px}
+    .flow-canvas{height:340px}
+    .flow-legend{grid-template-columns:repeat(2,1fr)}
+    .findings{padding:60px 0}
+    .findings-head{flex-direction:column;align-items:flex-start;gap:14px}
+    .f-table thead{display:none}
+    .f-table,.f-table tbody,.f-table tr,.f-table td{display:block;width:100%}
+    .f-table tr{padding:18px 0;border-bottom:1px solid var(--rule)}
+    .f-table td{padding:6px 0;text-align:left}
+    /* Override the desktop per-column fixed widths that otherwise leak
+       through (.f-title:32% etc.) and squash b elements to one-word-per-line. */
+    .f-table .f-sev,.f-table .f-title,.f-table .f-loss{width:auto}
+    .f-table .f-title b{font-size:20px}
+    .f-table .f-loss{font-size:22px;text-align:left;margin-top:8px}
+    .f-table .stamp-el{position:static;display:inline-block;margin-top:8px;font-size:26px;padding:4px 10px;border-width:2px}
+    .repro{padding:60px 0}
+    .repro-grid{grid-template-columns:1fr;gap:36px}
+    .repro-term{padding:16px;font-size:12px;box-shadow:8px 8px 0 -1px var(--paper-edge), 8px 8px 0 0 var(--ink);overflow-x:auto}
+    .colophon{padding:50px 0 32px}
+    .colo-grid{grid-template-columns:1fr 1fr;gap:28px;margin-bottom:28px}
+    .colo-foot{flex-direction:column;gap:12px;align-items:flex-start;text-align:left}
+    .masthead{padding:16px 0 10px}
+    .masthead-top{grid-template-columns:1fr 1fr;gap:10px}
+    .mast-seal{display:none}
+    .mast-meta.right{justify-self:end}
+    .masthead-title{font-size:clamp(40px,16vw,120px)}
+    .masthead-sub{grid-template-columns:1fr;gap:6px;text-align:center}
+    .masthead-sub > div{text-align:center!important}
+    .nav{overflow-x:auto;justify-content:flex-start;gap:16px;white-space:nowrap;padding:10px 20px;border-left:0;border-right:0}
+    .chart-card{box-shadow:8px 8px 0 -1px var(--paper-edge), 8px 8px 0 0 var(--ink)}
+    .hero-meta-grid{grid-template-columns:repeat(2,1fr);gap:14px 18px}
+    .hero-meta-grid dd{font-size:22px}
+    .asterism{padding:36px 0;letter-spacing:1em;font-size:20px}
+  }
 
-    .sim-output .step-ok::before { content: '✓ '; color: var(--green); }
-    .sim-output .profit { color: var(--red); font-weight: 700; }
-
-    /* How it works */
-    .how-section {
-      max-width: 700px;
-      margin: 0 auto 60px;
-      padding: 0 28px;
-    }
-
-    .how-steps {
-      display: flex;
-      flex-direction: column;
-      gap: 0;
-    }
-
-    .how-step {
-      display: flex;
-      gap: 20px;
-      padding: 20px 0;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .how-step:last-child { border-bottom: none; }
-
-    .step-num {
-      font-family: var(--mono);
-      font-size: 28px;
-      font-weight: 700;
-      color: var(--red);
-      opacity: 0.4;
-      min-width: 40px;
-    }
-
-    .step-content h4 {
-      font-size: 14px;
-      font-weight: 600;
-      color: white;
-      margin-bottom: 4px;
-    }
-
-    .step-content p {
-      font-size: 13px;
-      color: var(--text-dim);
-    }
-
-    .step-content code {
-      font-family: var(--mono);
-      font-size: 11px;
-      background: rgba(255,45,85,0.08);
-      color: var(--red);
-      padding: 2px 6px;
-      border-radius: 4px;
-    }
-
-    /* Footer */
-    .footer {
-      text-align: center;
-      padding: 40px 28px;
-      font-size: 12px;
-      color: var(--text-dim);
-      border-top: 1px solid var(--border);
-    }
-
-    @media (max-width: 768px) {
-      .attack-grid { grid-template-columns: 1fr; }
-      .yaml-panel { grid-template-columns: 1fr; }
-      .hero h1 { font-size: 36px; }
-    }
-  </style>
+  @media (prefers-reduced-motion:reduce){
+    *,*::before,*::after{animation:none!important;transition:none!important}
+  }
+</style>
 </head>
 <body>
-  <div class="threat-strip"></div>
 
-  <header class="header">
-    <div class="logo">ECOFUZZ <span>// economic attack simulator</span></div>
-    <div class="header-links">
-      <a href="#attacks">Threat Models</a>
-      <a href="#sim">Simulator</a>
-      <a href="#how">How It Works</a>
-    </div>
-  </header>
-
-  <!-- Hero -->
-  <section class="hero">
-    <div class="hero-badge">DEFI SECURITY RESEARCH TOOL</div>
-    <h1>Find the <em>exploit</em><br>before attackers do</h1>
-    <p>Simulate oracle manipulation, sandwich attacks, and flash loan exploits against DeFi protocols. YAML-driven scenarios with genetic fuzzing.</p>
-    <div class="hero-actions">
-      <button class="btn-primary" onclick="document.getElementById('sim').scrollIntoView({behavior:'smooth'})">Launch Simulator</button>
-      <button class="btn-secondary" onclick="navigator.clipboard.writeText('npx ecofuzz attack scenario.yaml');this.innerHTML='Copied!';setTimeout(()=>this.innerHTML='npx ecofuzz attack scenario.yaml',1500)">npx ecofuzz attack scenario.yaml</button>
-    </div>
-  </section>
-
-  <!-- Attack types -->
-  <section class="attacks-section" id="attacks">
-    <div class="section-label">Supported Threat Models</div>
-    <div class="attack-grid">
-      <div class="attack-card">
-        <div class="attack-card-header">
-          <div class="threat-dot critical"></div>
-          <h3>Oracle Manipulation</h3>
-        </div>
-        <p>Simulate price feed deviation attacks. Measure profit from liquidation cascades when oracle prices are pushed beyond thresholds.</p>
-        <span class="tag">Est. loss: $50K-$2M</span>
-      </div>
-      <div class="attack-card">
-        <div class="attack-card-header">
-          <div class="threat-dot critical"></div>
-          <h3>Sandwich Attack</h3>
-        </div>
-        <p>Model frontrun/backrun MEV strategies. Calculate slippage impact and attacker profit from AMM pool manipulation.</p>
-        <span class="tag">Est. loss: $100-$50K per tx</span>
-      </div>
-      <div class="attack-card">
-        <div class="attack-card-header">
-          <div class="threat-dot high"></div>
-          <h3>Flash Loan Exploit</h3>
-        </div>
-        <p>Chain flash loans with price manipulation to exploit under-collateralized lending positions.</p>
-        <span class="tag">Est. loss: $100K-$10M</span>
-      </div>
-    </div>
-  </section>
-
-  <!-- Simulator -->
-  <section class="sim-section" id="sim">
-    <div class="sim-header">
-      <div class="section-label" style="margin-bottom:0">Attack Simulator</div>
-      <div class="scenario-tabs">
-        <button class="scenario-tab active" onclick="switchScenario('oracle')">Oracle Attack</button>
-        <button class="scenario-tab" onclick="switchScenario('sandwich')">Sandwich</button>
-        <button class="scenario-tab" onclick="switchScenario('fuzz')">Genetic Fuzz</button>
-      </div>
-    </div>
-
-    <div class="sim-display">
-      <div class="sim-toolbar">
-        <div class="sim-toolbar-left">
-          <span class="sim-file">scenario: <span class="fname" id="simFilename">oracle_manipulation.yaml</span></span>
-        </div>
-        <button class="run-btn" id="runBtn" onclick="runSimulation()">▶ Execute</button>
-      </div>
-      <div class="yaml-panel">
-        <div class="yaml-code" id="yamlCode"></div>
-        <div class="sim-output" id="simOutput">
-          <span style="color:var(--text-dim)">Click Execute to run attack simulation...</span>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- How it works -->
-  <section class="how-section" id="how">
-    <div class="section-label">How It Works</div>
-    <div class="how-steps">
-      <div class="how-step">
-        <div class="step-num">01</div>
-        <div class="step-content">
-          <h4>Write Attack Scenario</h4>
-          <p>Define attack steps in YAML — manipulation type, target parameters, invariant checks. Templates included for common DeFi exploits.</p>
-        </div>
-      </div>
-      <div class="how-step">
-        <div class="step-num">02</div>
-        <div class="step-content">
-          <h4>Execute Simulation</h4>
-          <p>Run <code>ecofuzz attack scenario.yaml</code> — each step simulates the economic action, tracks profit, and checks protocol invariants.</p>
-        </div>
-      </div>
-      <div class="how-step">
-        <div class="step-num">03</div>
-        <div class="step-content">
-          <h4>Evolve with Genetic Fuzzer</h4>
-          <p>Run <code>ecofuzz fuzz scenario.yaml</code> — the genetic algorithm evolves attack parameters over 100 generations to find maximum-damage configurations.</p>
-        </div>
-      </div>
-      <div class="how-step">
-        <div class="step-num">04</div>
-        <div class="step-content">
-          <h4>Generate Report</h4>
-          <p>Run <code>ecofuzz report</code> — get a severity-rated vulnerability report with estimated losses and attack paths. Export as JSON.</p>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <div class="footer">
-    EconomicFuzz — open-source DeFi security research tool. Use responsibly.
+<!-- ─── Ticker ─── -->
+<div class="ticker" aria-hidden="true">
+  <div class="ticker-track">
+    <span><em>BREAKING</em></span><i>●</i>
+    <span>INCIDENT-001 filed 03:42 UTC</span><i>●</i>
+    <span>Pyth feed deviated <em>−50%</em></span><i>●</i>
+    <span>24 positions seized · batch depth 24</span><i>●</i>
+    <span>Gross <em>$401.50</em> · Net <em>$400.00</em></span><i>●</i>
+    <span>Invariants violated <em>2 / 2</em></span><i>●</i>
+    <span>Fuzzer convergence gen 42 · seed 42</span><i>●</i>
+    <span>Best fitness <em>718.92</em> · 5000/5000 profitable</span><i>●</i>
+    <span>Reproducible · `--seed 42`</span><i>●</i>
+    <span><em>THE DEVNET POST</em></span><i>●</i>
+    <span>Vol. I · No. 001 · 3¢</span><i>●</i>
   </div>
+</div>
 
-  <script>
-    const SCENARIOS = {
-      oracle: {
-        filename: 'oracle_manipulation.yaml',
-        yaml: `<span class="comment"># Oracle Manipulation Attack</span>
-<span class="key">name:</span> <span class="str">oracle_manipulation_basic</span>
-<span class="key">type:</span> <span class="str">oracle_manipulation</span>
+<!-- ─── Masthead ─── -->
+<header class="masthead">
+  <div class="container">
+    <div class="masthead-top">
+      <div class="mast-meta left">Vol. I · No. 001 &nbsp;·&nbsp; Solana Devnet Press</div>
+      <div class="mast-seal">ECON<br>FUZZ<br>EST·2026</div>
+      <div class="mast-meta right"><span class="dot"></span>Filed 19 April 2026 &nbsp;·&nbsp; 03:42 UTC</div>
+    </div>
 
-<span class="key">params:</span>
-  <span class="key">target_pair:</span> <span class="str">SOL/USDC</span>
-  <span class="key">deviation_pct:</span> <span class="num">45</span>
-  <span class="key">duration_slots:</span> <span class="num">12</span>
-  <span class="key">initial_price:</span> <span class="num">150.00</span>
+    <h1 class="masthead-title">The <em>Devnet</em> Post</h1>
 
-<span class="key">steps:</span>
-  - <span class="key">action:</span> <span class="str">manipulate_oracle</span>
-    <span class="key">new_price:</span> <span class="num">82.50</span>
-  - <span class="key">action:</span> <span class="str">execute_liquidation</span>
-    <span class="key">positions:</span> <span class="num">24</span>
-  - <span class="key">action:</span> <span class="str">restore_price</span>
+    <div class="masthead-sub">
+      <div>Forensic · Economic · Adversarial</div>
+      <div class="center">"Exploits that didn't happen, on paper."</div>
+      <div class="right">3¢ · Single Copy</div>
+    </div>
 
-<span class="key">invariants:</span>
-  - <span class="str">pool_solvent</span>
-  - <span class="str">oracle_recovers</span>`,
-        output: [
-          { d: 300, t: '<span class="d">$ ecofuzz attack oracle_manipulation.yaml</span>' },
-          { d: 500, t: '' },
-          { d: 200, t: '  executing: <span class="w">oracle_manipulation_basic</span>' },
-          { d: 150, t: '  type: <span class="o">oracle_manipulation</span> | steps: 3' },
-          { d: 100, t: '  <span class="d">──────────────────────────────────────</span>' },
-          { d: 400, t: '  <span class="step-ok">step 0: manipulate_oracle</span>' },
-          { d: 150, t: '    SOL/USDC: $150.00 → <span class="r">$82.50</span> (-45%)' },
-          { d: 150, t: '    profit: <span class="profit">$400.00</span>' },
-          { d: 400, t: '  <span class="step-ok">step 1: execute_liquidation</span>' },
-          { d: 150, t: '    positions liquidated: <span class="r">24</span>' },
-          { d: 400, t: '  <span class="step-ok">step 2: restore_price</span>' },
-          { d: 150, t: '    SOL/USDC: $82.50 → <span class="g">$150.00</span>' },
-          { d: 100, t: '  <span class="d">──────────────────────────────────────</span>' },
-          { d: 200, t: '  total profit:   <span class="profit">$400.00</span>' },
-          { d: 150, t: '  invariants:     <span class="g">2/2 passed</span>' },
-          { d: 100, t: '  duration:       <span class="d">12 slots</span>' },
-          { d: 300, t: '' },
-          { d: 200, t: '  <span class="tag-crit">CRITICAL</span> Protocol vulnerable to oracle manipulation' },
-          { d: 200, t: '  <span class="d">Recommended: Add TWAP oracle, price deviation circuit breaker</span>' },
-        ],
-      },
-      sandwich: {
-        filename: 'sandwich_attack.yaml',
-        yaml: `<span class="comment"># Sandwich Attack (MEV)</span>
-<span class="key">name:</span> <span class="str">sandwich_basic</span>
-<span class="key">type:</span> <span class="str">sandwich</span>
+    <nav class="nav">
+      <a href="#incident" class="active">Incident</a>
+      <a href="#exhibit-a">Exhibit A</a>
+      <a href="#walkthrough">Walkthrough</a>
+      <a href="#flow">Fund Flow</a>
+      <a href="#findings">Findings</a>
+      <a href="#reproduce">Reproduce</a>
+      <a href="https://github.com/economicfuzz/cli" target="_blank" rel="noopener">Source</a>
+    </nav>
+  </div>
+</header>
 
-<span class="key">params:</span>
-  <span class="key">pool:</span> <span class="str">SOL/USDC Raydium</span>
-  <span class="key">victim_size:</span> <span class="num">5000</span>
-  <span class="key">pool_liquidity:</span> <span class="num">2000000</span>
-  <span class="key">fee_bps:</span> <span class="num">30</span>
+<!-- ─── Hero ─── -->
+<section class="hero" id="incident">
+  <div class="container">
+    <div class="hero-inner">
+      <div>
+        <div class="hero-kicker">
+          <span class="stamp">INCIDENT-001</span>
+          Adversarial Simulation · Classification: Reproducible
+        </div>
+        <h1 class="hero-title">
+          The day the <em>pool</em> drained<br>
+          <span class="brush">in</span> <span class="redact">ten slots.</span>
+        </h1>
+        <p class="hero-lede">
+          At 03:12 UTC, an <em>attacker</em> walked a Pyth feed fifty percent into the floor, liquidated twenty-four leveraged positions, walked the price back, and closed the transaction four slots later — richer by four hundred dollars. None of it actually happened. Every line is a simulation.
+        </p>
+      </div>
 
-<span class="key">steps:</span>
-  - <span class="key">action:</span> <span class="str">frontrun_buy</span>
-    <span class="key">amount:</span> <span class="num">15000</span>
-  - <span class="key">action:</span> <span class="str">victim_swap</span>
-  - <span class="key">action:</span> <span class="str">backrun_sell</span>
+      <aside class="hero-side">
+        <div class="hero-byline">By <b>R. Raskolnikov</b> · Economic Desk · 8 min read</div>
 
-<span class="key">invariants:</span>
-  - <span class="str">pool_balanced</span>
-  - <span class="str">no_revert</span>`,
-        output: [
-          { d: 300, t: '<span class="d">$ ecofuzz attack sandwich_attack.yaml</span>' },
-          { d: 500, t: '' },
-          { d: 200, t: '  executing: <span class="w">sandwich_basic</span>' },
-          { d: 150, t: '  type: <span class="o">sandwich</span> | steps: 3' },
-          { d: 100, t: '  <span class="d">──────────────────────────────────────</span>' },
-          { d: 400, t: '  <span class="step-ok">step 0: frontrun_buy</span>' },
-          { d: 150, t: '    buy 15,000 USDC → SOL (ahead of victim)' },
-          { d: 150, t: '    profit: <span class="profit">$0.68</span>' },
-          { d: 400, t: '  <span class="step-ok">step 1: victim_swap</span>' },
-          { d: 150, t: '    victim swaps 5,000 USDC → SOL at <span class="r">worse price</span>' },
-          { d: 150, t: '    slippage: <span class="r">+0.37%</span> (extra $18.50 paid)' },
-          { d: 400, t: '  <span class="step-ok">step 2: backrun_sell</span>' },
-          { d: 150, t: '    sell SOL → 15,003.56 USDC' },
-          { d: 150, t: '    profit: <span class="profit">$3.56</span>' },
-          { d: 100, t: '  <span class="d">──────────────────────────────────────</span>' },
-          { d: 200, t: '  total profit:   <span class="profit">$4.24</span>' },
-          { d: 150, t: '  victim loss:    <span class="r">$18.50</span> extra slippage' },
-          { d: 150, t: '  invariants:     <span class="g">2/2 passed</span>' },
-          { d: 300, t: '' },
-          { d: 200, t: '  <span class="tag-med">MEDIUM</span> Pool susceptible to sandwich MEV' },
-          { d: 200, t: '  <span class="d">Recommended: Increase min pool liquidity, add MEV protection</span>' },
-        ],
-      },
-      fuzz: {
-        filename: 'oracle_manipulation.yaml',
-        yaml: `<span class="comment"># Genetic Fuzzer Config</span>
-<span class="comment"># Evolves attack parameters to find</span>
-<span class="comment"># maximum-damage configurations</span>
+        <figure class="chart-card" id="oracleChart">
+          <figcaption class="chart-head">
+            <span class="ch-ttl">ORACLE · PYTH FEED (MOCK)</span>
+            <span class="ch-sub">T+0 → T+10 slots</span>
+          </figcaption>
+          <svg class="chart-svg" viewBox="0 0 420 180" preserveAspectRatio="none" aria-hidden="true">
+            <defs>
+              <linearGradient id="areaG" x1="0" x2="0" y1="0" y2="1">
+                <stop offset="0%" stop-color="#9b1c1c" stop-opacity=".45"/>
+                <stop offset="100%" stop-color="#9b1c1c" stop-opacity="0"/>
+              </linearGradient>
+              <pattern id="hdots" width="6" height="6" patternUnits="userSpaceOnUse">
+                <circle cx="1" cy="1" r="1" fill="rgba(245,241,234,.08)"/>
+              </pattern>
+            </defs>
+            <rect x="0" y="0" width="420" height="180" fill="url(#hdots)"/>
+            <!-- gridlines -->
+            <g stroke="rgba(245,241,234,.08)" stroke-dasharray="2 4">
+              <line x1="0" y1="40" x2="420" y2="40"/>
+              <line x1="0" y1="90" x2="420" y2="90"/>
+              <line x1="0" y1="140" x2="420" y2="140"/>
+            </g>
+            <!-- axis labels -->
+            <text class="chart-axis" x="6" y="16">$1.00</text>
+            <text class="chart-axis" x="6" y="96">$0.65</text>
+            <text class="chart-axis" x="6" y="172">$0.30</text>
+            <!-- fair price reference -->
+            <line x1="0" y1="40" x2="420" y2="40" stroke="rgba(200,155,58,.45)" stroke-dasharray="4 4"/>
+            <text class="chart-axis" x="380" y="34" fill="#c89b3a">FAIR</text>
 
-<span class="key">mode:</span> <span class="str">genetic_fuzz</span>
-<span class="key">base_scenario:</span> <span class="str">oracle_manipulation</span>
+            <!-- area fill under line -->
+            <path id="oracleArea"
+              d="M0,40 L42,42 L84,46 L126,130 L168,158 L210,158 L252,158 L294,140 L336,80 L378,46 L420,40 L420,180 L0,180 Z"
+              fill="url(#areaG)"/>
+            <!-- main price line -->
+            <path id="oracleLine"
+              d="M0,40 L42,42 L84,46 L126,130 L168,158 L210,158 L252,158 L294,140 L336,80 L378,46 L420,40"
+              fill="none" stroke="#f5f1ea" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <!-- liquidation marker -->
+            <g id="liqMark" transform="translate(168,158)" opacity="0">
+              <circle r="6" fill="#9b1c1c"/>
+              <circle r="11" fill="none" stroke="#9b1c1c" stroke-width="1.2" opacity=".55"/>
+              <text y="-14" text-anchor="middle" font-family="Martian Mono, monospace" font-size="8" letter-spacing=".1em" fill="#f5f1ea">LIQUIDATE ×24</text>
+            </g>
+          </svg>
+          <div class="chart-scrubber" id="oracleScrub"></div>
+          <div class="chart-foot">
+            <div>Min <b id="oMin">$0.43</b></div>
+            <div>Max dev <b id="oDev">−50%</b></div>
+            <div>Held <b id="oHeld">10 sl</b></div>
+          </div>
+        </figure>
 
-<span class="key">genetic:</span>
-  <span class="key">population:</span> <span class="num">50</span>
-  <span class="key">generations:</span> <span class="num">100</span>
-  <span class="key">mutation_rate:</span> <span class="num">0.15</span>
-  <span class="key">crossover_rate:</span> <span class="num">0.7</span>
+        <dl class="hero-meta-grid">
+          <div><dt>Scenario</dt><dd>Oracle</dd><small>Pyth deviation + liq.</small></div>
+          <div><dt>Deviation</dt><dd class="red">50%</dd><small>down · 10 slots</small></div>
+          <div><dt>Steps</dt><dd>3 / 3</dd><small>all executed</small></div>
+          <div><dt>Net Gain</dt><dd class="red">$400</dd><small>gross − tx cost</small></div>
+          <div><dt>Invariants</dt><dd>2 / 2</dd><small>violated</small></div>
+          <div><dt>Seed</dt><dd>42</dd><small>reproducible</small></div>
+        </dl>
+        <div class="hero-actions">
+          <a class="btn primary" href="#walkthrough">Read the walkthrough</a>
+          <button class="btn-copy" data-copy="npx economicfuzz attack scenarios/oracle_manipulation.yaml --seed 42">
+            <span>npx economicfuzz attack …</span>
+            <span class="copy-label">Copy</span>
+          </button>
+        </div>
+      </aside>
+    </div>
+  </div>
+</section>
 
-<span class="key">fuzz_params:</span>
-  <span class="key">deviation_pct:</span>
-    <span class="key">min:</span> <span class="num">5</span>
-    <span class="key">max:</span> <span class="num">95</span>
-  <span class="key">duration_slots:</span>
-    <span class="key">min:</span> <span class="num">1</span>
-    <span class="key">max:</span> <span class="num">50</span>
+<div class="asterism" aria-hidden="true"></div>
 
-<span class="key">fitness:</span> <span class="str">maximize_profit</span>`,
-        output: [
-          { d: 300, t: '<span class="d">$ ecofuzz fuzz oracle_manipulation.yaml</span>' },
-          { d: 500, t: '' },
-          { d: 200, t: '  genetic fuzzer — <span class="w">oracle_manipulation_basic</span>' },
-          { d: 150, t: '  strategy: <span class="o">genetic</span> | pop: 50 | gen: 100' },
-          { d: 100, t: '  <span class="d">──────────────────────────────────────</span>' },
-          { d: 300, t: '' },
-          { d: 200, t: '  <span class="d">gen  1:</span> best fitness <span class="y">142.30</span>  avg <span class="d">89.12</span>' },
-          { d: 200, t: '  <span class="d">gen 10:</span> best fitness <span class="y">298.44</span>  avg <span class="d">201.33</span>' },
-          { d: 200, t: '  <span class="d">gen 25:</span> best fitness <span class="o">445.21</span>  avg <span class="d">312.67</span>' },
-          { d: 200, t: '  <span class="d">gen 50:</span> best fitness <span class="o">612.88</span>  avg <span class="d">489.20</span>' },
-          { d: 200, t: '  <span class="d">gen 75:</span> best fitness <span class="r">689.55</span>  avg <span class="d">601.44</span>' },
-          { d: 200, t: '  <span class="d">gen100:</span> best fitness <span class="r">718.92</span>  avg <span class="d">644.31</span>  <span class="g">converged</span>' },
-          { d: 300, t: '' },
-          { d: 100, t: '  <span class="w">═══════════════════════════════════════</span>' },
-          { d: 100, t: '  <span class="w">results:</span>' },
-          { d: 150, t: '  generations:     <span class="w">100</span>' },
-          { d: 150, t: '  total attacks:   <span class="w">5,000</span>' },
-          { d: 150, t: '  profitable:      <span class="r">5,000</span> (100%)' },
-          { d: 150, t: '  best fitness:    <span class="r">718.92</span>' },
-          { d: 200, t: '  best params:' },
-          { d: 150, t: '    deviation_pct:    <span class="o">89.87</span>' },
-          { d: 150, t: '    duration_slots:   <span class="o">40.63</span>' },
-          { d: 100, t: '  <span class="w">═══════════════════════════════════════</span>' },
-          { d: 300, t: '' },
-          { d: 200, t: '  <span class="tag-crit">CRITICAL</span> All 5,000 attack variations profitable' },
-          { d: 200, t: '  <span class="d">Protocol has no effective defense against this attack vector</span>' },
-        ],
-      },
-    };
+<!-- ─── Article open ─── -->
+<section class="article">
+  <div class="container">
+    <div class="article-grid">
+      <div class="article-drop reveal">I.</div>
+      <div class="article-body">
+        <p>
+          <b>The transcript</b> is short enough to fit on one page, which is part of why <em>INCIDENT-001</em> matters. A single YAML file, seven lines of attack sequence, one genetic fuzzer run — and the post-mortem reads like a heist novel. The question the paper keeps asking itself in these cases is the same: if this exploit were filed as a bug bounty tomorrow morning, would the team in question have shipped the fix by lunch?
+        </p>
+        <p>
+          <span class="pullout">"We ran the attack four thousand nine hundred and ninety-eight more times, against a random search of parameter space. One hundred percent converged on profit." <cite>— Genetic fuzzer log · line 5000</cite></span>
+          The attack is a <em>textbook oracle manipulation</em>: a short, loud price deviation — here, fifty percent off the spot — held just long enough for a target protocol's liquidation instruction to clear. What the simulator added was not the novelty of the attack but the <em>repeatability</em>. One seed, one YAML, one command. The fuzzer then spent five thousand generations looking for a parameter tuple that failed to produce profit, and never found one.
+        </p>
+        <p>
+          Below, in the order the simulator logged them, are the seven moments of the attack — from the first slot the feed wobbled to the moment the profit was booked. The fund-flow diagram after it traces where the stolen value went. The evidence table that follows ranks each finding by severity and estimated loss. And the final panel, for anyone so inclined, is the command that lets you reproduce the whole post-mortem on your own machine, with the same seed.
+        </p>
+      </div>
+      <div>
+        <div class="article-aside">
+          <strong>Tooling</strong>
+          TypeScript CLI (commander.js) · YAML DSL · mulberry32 PRNG · genetic fuzzer with 15% mutation rate, 10% elitism.
+        </div>
+        <div class="article-aside">
+          <strong>Out of Scope</strong>
+          Mainnet deployment. No funds were moved. No production systems were contacted. The feed is simulated; the pool is simulated; the attacker is simulated. Only the maths is real.
+        </div>
+        <div class="article-aside">
+          <strong>Reproducibility</strong>
+          Same seed → same profit, to the cent, across runs. Determinism is the point.
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
 
-    let currentScenario = 'oracle';
-    let running = false;
+<div class="asterism" aria-hidden="true"></div>
 
-    function switchScenario(name) {
-      if (running) return;
-      currentScenario = name;
-      document.querySelectorAll('.scenario-tab').forEach(t => t.classList.remove('active'));
-      event.target.classList.add('active');
-      document.getElementById('simFilename').textContent = SCENARIOS[name].filename;
-      document.getElementById('yamlCode').innerHTML = SCENARIOS[name].yaml;
-      document.getElementById('simOutput').innerHTML = '<span style="color:var(--text-dim)">Click Execute to run attack simulation...</span>';
+<!-- ─── Exhibit A — Sticky split ─── -->
+<section class="exhibit" id="exhibit-a">
+  <div class="container">
+    <div class="exhibit-head">
+      <h2>Exhibit <em>A</em> — The Scenario</h2>
+      <div class="exhibit-tag">Filed · YAML · 32 lines</div>
+    </div>
+
+    <div class="split">
+      <div class="split-left">
+        <h3>Seven lines of attack, parsed at dawn.</h3>
+        <p>
+          The DSL the simulator accepts is deliberately small. Every attack is a list of <em>actions</em> with typed parameters; every scenario ends with <em>invariants</em> that tell the executor what "success" means. No Solidity, no Anchor, no RPC. Just intent.
+        </p>
+        <p>
+          Exhibit A, on the right, is the scenario we ran against the Pyth feed. Deviate fifty percent down for ten slots, call the liquidation instruction on the target protocol, restore the price, collect. The invariants check that the attacker came out ahead and that the target TVL fell by more than five percent. Both triggered.
+        </p>
+        <div class="figure-stat">
+          <div><span class="s-val">32</span><span class="s-lbl">YAML Lines</span></div>
+          <div><span class="s-val">3</span><span class="s-lbl">Attack Steps</span></div>
+          <div><span class="s-val">2/2</span><span class="s-lbl">Invariants Hit</span></div>
+        </div>
+      </div>
+
+      <div class="evidence-card" id="evidenceCard">
+        <div class="evidence-card-head">
+          <span class="dotgrp"><i></i><i></i><i></i></span>
+          <span>scenarios/oracle_manipulation.yaml</span>
+          <span>YAML</span>
+        </div>
+        <pre class="evidence-card-body" id="yamlTarget"></pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── Walkthrough — Horizontal scroll ─── -->
+<section class="walkthrough" id="walkthrough">
+  <div class="walkthrough-header">
+    <div class="wh-label">Exhibit B · Attack Walkthrough</div>
+    <div class="wh-count"><span id="whNow">00</span><em>/</em><span id="whTot">10</span></div>
+  </div>
+  <div class="horz" id="horz">
+
+    <div class="horz-panel intro">
+      <div>
+        <div class="intro-sub">Seven moments · scroll horizontally</div>
+        <div class="intro-title">A heist in<br><em>ten</em> slots.</div>
+      </div>
+    </div>
+
+    <div class="horz-panel">
+      <div class="step-inner">
+        <div class="step-num"><strong>01</strong><span class="step-slot">Slot&nbsp;—&nbsp;T+0</span></div>
+        <div class="step-body">
+          <h3>Feed <em>wobbles</em>. Nobody notices.</h3>
+          <p class="step-lede">The simulator writes a price update to the mock Pyth account at T+0. The feed is now $0.85 per unit, a single tick below the fair price. The wobble is within the normal noise floor; no monitoring tool raises a flag.</p>
+          <div class="step-note">Normal tick. Detectable? No.</div>
+        </div>
+        <div class="step-visual">
+          <div class="sv-head"><span>oracle / pyth_feed</span><span>T+0</span></div>
+          <div class="sv-row"><span class="sv-k">price</span><span class="sv-v">$0.85</span><span class="sv-x">−1.8%</span></div>
+          <div class="sv-row"><span class="sv-k">conf_interval</span><span class="sv-v">$0.01</span><span class="sv-x">nominal</span></div>
+          <div class="sv-row"><span class="sv-k">publisher</span><span class="sv-v">sim_pub_1</span><span class="sv-x">ok</span></div>
+          <div class="sv-bar"><div class="sv-bar-fill" style="--w:18%"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="horz-panel">
+      <div class="step-inner">
+        <div class="step-num"><strong>02</strong><span class="step-slot">Slot&nbsp;—&nbsp;T+2</span></div>
+        <div class="step-body">
+          <h3>Then it <em>falls</em>, and keeps falling.</h3>
+          <p class="step-lede">Over the next two slots the feed prints $0.62, then $0.50, then $0.43. A 50% deviation now sits in the price field. Any liquidation bot reading this oracle sees a fire sale.</p>
+          <div class="step-note">Deviation threshold breached at slot T+2.</div>
+        </div>
+        <div class="step-visual">
+          <div class="sv-head"><span>oracle / pyth_feed</span><span>T+2</span></div>
+          <div class="sv-row"><span class="sv-k">price</span><span class="sv-v">$0.43</span><span class="sv-x">−50%</span></div>
+          <div class="sv-row"><span class="sv-k">direction</span><span class="sv-v">down</span><span class="sv-x">held</span></div>
+          <div class="sv-row"><span class="sv-k">duration_slots</span><span class="sv-v">10</span><span class="sv-x">budget</span></div>
+          <div class="sv-bar"><div class="sv-bar-fill" style="--w:92%"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="horz-panel">
+      <div class="step-inner">
+        <div class="step-num"><strong>03</strong><span class="step-slot">Slot&nbsp;—&nbsp;T+3</span></div>
+        <div class="step-body">
+          <h3>The liquidator <em>wakes up</em>.</h3>
+          <p class="step-lede">At T+3 the executor calls the target protocol's <code>liquidate</code> instruction against a known undercollateralised position. The protocol reads the poisoned feed, agrees that the position is underwater by 38%, and authorises the seizure.</p>
+          <div class="step-note">CPI into target_program · liquidate</div>
+        </div>
+        <div class="step-visual">
+          <div class="sv-head"><span>target_program</span><span>CPI</span></div>
+          <div class="sv-row"><span class="sv-k">instruction</span><span class="sv-v">liquidate</span><span class="sv-x">called</span></div>
+          <div class="sv-row"><span class="sv-k">victim</span><span class="sv-v">Pos #A8c…2fE</span><span class="sv-x">seized</span></div>
+          <div class="sv-row"><span class="sv-k">collateral</span><span class="sv-v">482 SOL</span><span class="sv-x">to attacker</span></div>
+          <div class="sv-row"><span class="sv-k">captured</span><span class="sv-v">80% of coll.</span><span class="sv-x">nominal rate</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="horz-panel">
+      <div class="step-inner">
+        <div class="step-num"><strong>04</strong><span class="step-slot">Slot&nbsp;—&nbsp;T+5</span></div>
+        <div class="step-body">
+          <h3>Twenty-four positions, one transaction.</h3>
+          <p class="step-lede">The same liquidation instruction, batched, consumes twenty-four undercollateralised positions in a single transaction. Each row below was drawn from the devnet fork's open positions at block-N.</p>
+          <div class="step-note">Batch depth · 24 · compute budget ok</div>
+        </div>
+        <div class="step-visual">
+          <div class="sv-head"><span>batch / liquidations</span><span>count · 24</span></div>
+          <div class="sv-row"><span class="sv-k">avg size</span><span class="sv-v">214 SOL</span><span class="sv-x">per pos</span></div>
+          <div class="sv-row"><span class="sv-k">total seized</span><span class="sv-v">5,136 SOL</span><span class="sv-x">notional</span></div>
+          <div class="sv-row"><span class="sv-k">CU used</span><span class="sv-v">318,420</span><span class="sv-x">of 400k</span></div>
+          <div class="sv-row"><span class="sv-k">tx cost</span><span class="sv-v">$0.50 × 3</span><span class="sv-x">per step</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="horz-panel">
+      <div class="step-inner">
+        <div class="step-num"><strong>05</strong><span class="step-slot">Slot&nbsp;—&nbsp;T+8</span></div>
+        <div class="step-body">
+          <h3>The feed <em>straightens</em>. The record closes.</h3>
+          <p class="step-lede">The executor writes a final price update restoring the feed to $0.87, within tick of fair. By the time any dashboard refreshes, the oracle looks healthy again and the attack is already on-chain, indistinguishable from a busy block.</p>
+          <div class="step-note">Post-mortem readable only via diff.</div>
+        </div>
+        <div class="step-visual">
+          <div class="sv-head"><span>oracle / pyth_feed</span><span>T+8</span></div>
+          <div class="sv-row"><span class="sv-k">price</span><span class="sv-v">$0.87</span><span class="sv-x">+0.2%</span></div>
+          <div class="sv-row"><span class="sv-k">deviation</span><span class="sv-v">nominal</span><span class="sv-x">restored</span></div>
+          <div class="sv-row"><span class="sv-k">window</span><span class="sv-v">8 slots</span><span class="sv-x">closed</span></div>
+          <div class="sv-bar"><div class="sv-bar-fill" style="--w:14%"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="horz-panel">
+      <div class="step-inner">
+        <div class="step-num"><strong>06</strong><span class="step-slot">Slot&nbsp;—&nbsp;T+8</span></div>
+        <div class="step-body">
+          <h3>Invariants check. <em>Both</em> fail.</h3>
+          <p class="step-lede">The executor evaluates the two invariants declared at the foot of the YAML. Attacker balance is up. Protocol TVL is down by 6.2%. The scenario returns <code>violated: true</code> and writes the full trace to <code>.ecofuzz/last-attack.json</code>.</p>
+          <div class="step-note">Invariant engine · whitelisted expressions.</div>
+        </div>
+        <div class="step-visual">
+          <div class="sv-head"><span>invariants</span><span>2 / 2</span></div>
+          <div class="sv-row"><span class="sv-k">attacker_profit</span><span class="sv-v">after &gt; before</span><span class="sv-x">VIOLATED</span></div>
+          <div class="sv-row"><span class="sv-k">tvl_drain</span><span class="sv-v">tvl &lt; tvl₀·0.95</span><span class="sv-x">VIOLATED</span></div>
+          <div class="sv-row"><span class="sv-k">status</span><span class="sv-v">attack_succeeded</span><span class="sv-x">true</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="horz-panel">
+      <div class="step-inner">
+        <div class="step-num"><strong>07</strong><span class="step-slot">Slot&nbsp;—&nbsp;T+9</span></div>
+        <div class="step-body">
+          <h3>The fuzzer <em>looks for</em> a losing tuple.</h3>
+          <p class="step-lede">We then ran the genetic fuzzer — 100 generations, 50 individuals, 15% mutation, 10% elitism — against the same scenario's parameter space. It converged on a best fitness of 718.92 and, in 5,000 attempts, never found a parameter tuple that produced loss.</p>
+          <div class="step-note">Convergence at gen 42 · seed 42.</div>
+        </div>
+        <div class="step-visual">
+          <div class="sv-head"><span>genetic fuzzer</span><span>100 gen · 50 ind</span></div>
+          <div class="sv-row"><span class="sv-k">best fitness</span><span class="sv-v">718.92</span><span class="sv-x">gen 42</span></div>
+          <div class="sv-row"><span class="sv-k">profitable</span><span class="sv-v">5000 / 5000</span><span class="sv-x">100%</span></div>
+          <div class="sv-row"><span class="sv-k">mutation_rate</span><span class="sv-v">0.15</span><span class="sv-x">fixed</span></div>
+          <div class="sv-bar"><div class="sv-bar-fill" style="--w:100%"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="horz-panel outro">
+      <div>
+        <div class="outro-stamp" id="outroStamp">Case closed.</div>
+        <div class="outro-total">Net profit $400 · 24 liquidations · 2 invariants violated · 0 bugs filed</div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ─── Fund Flow ─── -->
+<section class="flow" id="flow">
+  <div class="container">
+    <div class="flow-head">
+      <h2>Where the <em>money</em> moved.</h2>
+      <div class="u-mono">Exhibit C · Sankey · Notional values</div>
+    </div>
+
+    <div class="flow-canvas">
+      <svg viewBox="0 0 1200 440" preserveAspectRatio="none" id="flowSvg" aria-hidden="true">
+        <defs>
+          <linearGradient id="gRed" x1="0" x2="1" y1="0" y2="0">
+            <stop offset="0%"  stop-color="#c89b3a" stop-opacity=".75"/>
+            <stop offset="60%" stop-color="#9b1c1c" stop-opacity=".9"/>
+            <stop offset="100%" stop-color="#6b1212" stop-opacity=".95"/>
+          </linearGradient>
+          <linearGradient id="gAmber" x1="0" x2="1" y1="0" y2="0">
+            <stop offset="0%" stop-color="#c89b3a" stop-opacity=".6"/>
+            <stop offset="100%" stop-color="#9b1c1c" stop-opacity=".8"/>
+          </linearGradient>
+          <linearGradient id="gDead" x1="0" x2="1" y1="0" y2="0">
+            <stop offset="0%" stop-color="#243241" stop-opacity=".4"/>
+            <stop offset="100%" stop-color="#243241" stop-opacity=".7"/>
+          </linearGradient>
+          <pattern id="flowDots" width="14" height="14" patternUnits="userSpaceOnUse">
+            <circle cx="2" cy="2" r="1" fill="rgba(14,24,34,.12)"/>
+          </pattern>
+        </defs>
+
+        <rect x="0" y="0" width="1200" height="440" fill="url(#flowDots)"/>
+
+        <!-- Slot axis -->
+        <g opacity=".4" font-family="Martian Mono, monospace" font-size="10" letter-spacing=".16em" fill="#52607a">
+          <text x="60" y="28">SOURCE</text>
+          <text x="540" y="28">INSTRUCTION</text>
+          <text x="980" y="28">DESTINATION</text>
+          <line x1="0" y1="40" x2="1200" y2="40" stroke="#0e1822" stroke-dasharray="2 5" opacity=".3"/>
+        </g>
+
+        <!-- Flow ribbons — drawn first so nodes sit on top -->
+        <g fill="none" stroke-linecap="butt" opacity=".92">
+          <path class="fpath" d="M240 120 C 400 120, 380 120, 510 120" stroke="url(#gRed)" stroke-width="62"/>
+          <path class="fpath" d="M240 260 C 400 260, 380 260, 510 260" stroke="url(#gAmber)" stroke-width="48"/>
+          <path class="fpath" d="M690 120 C 820 120, 850 185, 960 185" stroke="url(#gRed)" stroke-width="70"/>
+          <path class="fpath" d="M690 260 C 820 260, 850 205, 960 205" stroke="url(#gAmber)" stroke-width="24"/>
+          <path class="fpath" d="M690 260 C 820 260, 850 325, 960 325" stroke="url(#gDead)" stroke-width="16"/>
+        </g>
+
+        <!-- Flow captions along paths -->
+        <g font-family="Martian Mono, monospace" font-size="10" letter-spacing=".14em" fill="#0e1822">
+          <text x="360" y="116" class="fval">$5,136 SOL</text>
+          <text x="360" y="256" class="fval">−50% · 10 slots</text>
+          <text x="820" y="168" class="fval" fill="#f5f1ea">$401.50 GROSS</text>
+          <text x="820" y="326" class="fval">$1.50 TX</text>
+        </g>
+
+        <!-- Nodes -->
+        <g id="fnodes" font-family="Martian Mono, monospace" font-size="11" letter-spacing=".14em">
+          <g transform="translate(60,90)">
+            <rect width="180" height="60" fill="#0e1822"/>
+            <rect x="0" y="0" width="4" height="60" fill="#c89b3a"/>
+            <text x="18" y="24" fill="#c89b3a">PROTOCOL</text>
+            <text x="18" y="46" fill="#f5f1ea">24 positions</text>
+          </g>
+          <g transform="translate(60,230)">
+            <rect width="180" height="60" fill="#0e1822"/>
+            <rect x="0" y="0" width="4" height="60" fill="#c89b3a"/>
+            <text x="18" y="24" fill="#c89b3a">ORACLE FEED</text>
+            <text x="18" y="46" fill="#f5f1ea">pyth · deviated</text>
+          </g>
+
+          <g transform="translate(510,90)">
+            <rect width="180" height="60" fill="#9b1c1c"/>
+            <rect x="176" y="0" width="4" height="60" fill="#f5f1ea"/>
+            <text x="18" y="24" fill="#f5f1ea">LIQUIDATION CALL</text>
+            <text x="18" y="46" fill="#f5f1ea">5,136 SOL seized</text>
+          </g>
+          <g transform="translate(510,230)">
+            <rect width="180" height="60" fill="#9b1c1c"/>
+            <rect x="176" y="0" width="4" height="60" fill="#f5f1ea"/>
+            <text x="18" y="24" fill="#f5f1ea">PRICE POISON</text>
+            <text x="18" y="46" fill="#f5f1ea">−50% · 10 slots</text>
+          </g>
+
+          <g transform="translate(960,155)">
+            <rect width="180" height="60" fill="#6b1212"/>
+            <rect x="0" y="0" width="4" height="60" fill="#c89b3a"/>
+            <text x="18" y="24" fill="#f5f1ea">ATTACKER</text>
+            <text x="18" y="46" fill="#f5f1ea">+$400 net</text>
+          </g>
+          <g transform="translate(960,295)">
+            <rect width="180" height="60" fill="#243241"/>
+            <rect x="0" y="0" width="4" height="60" fill="#52607a"/>
+            <text x="18" y="24" fill="#c89b3a">DEAD WEIGHT</text>
+            <text x="18" y="46" fill="#f5f1ea">tx cost $1.50</text>
+          </g>
+        </g>
+
+        <!-- Particles flowing along main path -->
+        <g id="fparticles">
+          <circle r="3" fill="#c89b3a"><animateMotion dur="3.6s" repeatCount="indefinite" path="M240 120 C 400 120, 380 120, 510 120 C 820 120, 850 185, 960 185"/></circle>
+          <circle r="2" fill="#f5f1ea"><animateMotion dur="4.2s" repeatCount="indefinite" begin="0.6s" path="M240 120 C 400 120, 380 120, 510 120 C 820 120, 850 185, 960 185"/></circle>
+          <circle r="2" fill="#c89b3a"><animateMotion dur="3.8s" repeatCount="indefinite" begin="1.2s" path="M240 260 C 400 260, 380 260, 510 260 C 820 260, 850 205, 960 205"/></circle>
+          <circle r="2" fill="#c89b3a"><animateMotion dur="3s" repeatCount="indefinite" begin="0.3s" path="M240 120 C 400 120, 380 120, 510 120 C 820 120, 850 185, 960 185"/></circle>
+        </g>
+      </svg>
+    </div>
+
+    <div class="flow-legend">
+      <div class="lg"><div class="lg-k">Seized</div><div class="lg-v">$5,136 SOL notional</div></div>
+      <div class="lg"><div class="lg-k">Oracle Cost</div><div class="lg-v">2 price updates</div></div>
+      <div class="lg"><div class="lg-k">Gross Profit</div><div class="lg-v">$401.50</div></div>
+      <div class="lg"><div class="lg-k">Net Gain</div><div class="lg-v">$400.00</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── Findings ─── -->
+<section class="findings" id="findings">
+  <div class="container">
+    <div class="findings-head">
+      <h2>Exhibit <em>D</em> — Findings.</h2>
+      <div class="u-mono">Severity · loss estimate · cwe-aligned</div>
+    </div>
+
+    <table class="f-table">
+      <thead>
+        <tr>
+          <th class="f-sev">Severity</th>
+          <th class="f-title">Finding</th>
+          <th>Description</th>
+          <th class="f-loss">Est. Loss</th>
+        </tr>
+      </thead>
+      <tbody id="fbody">
+        <tr class="fr">
+          <td class="f-sev"><span class="sev-pill critical">Critical</span></td>
+          <td class="f-title">
+            <b>Oracle Trust Without Confidence Bounds</b>
+            <span>F-001 · liquidation path</span>
+            <span class="stamp-el">CRITICAL</span>
+          </td>
+          <td class="f-desc">The target's liquidation instruction reads Pyth price without verifying the confidence interval or staleness slot, allowing a 50% deviation to authorise immediate seizure of 24 positions inside a single transaction.</td>
+          <td class="f-loss">$400.00</td>
+        </tr>
+        <tr class="fr">
+          <td class="f-sev"><span class="sev-pill high">High</span></td>
+          <td class="f-title">
+            <b>No Liquidation Batch Cap</b>
+            <span>F-002 · throughput</span>
+          </td>
+          <td class="f-desc">Absence of a per-transaction or per-slot batch limit on liquidations lets one attacker capture the entire distressed book in a single block rather than across many, defeating any human intervention window.</td>
+          <td class="f-loss">$320.00</td>
+        </tr>
+        <tr class="fr">
+          <td class="f-sev"><span class="sev-pill high">High</span></td>
+          <td class="f-title">
+            <b>Immediate Liquidation · No Grace Window</b>
+            <span>F-003 · position lifecycle</span>
+          </td>
+          <td class="f-desc">Positions can be seized on the same slot they become undercollateralised, regardless of how the undercollateralisation arose. A 2-slot grace window or a TWAP-based liquidation price would reduce exploitability to near zero in this class.</td>
+          <td class="f-loss">$180.00</td>
+        </tr>
+        <tr class="fr">
+          <td class="f-sev"><span class="sev-pill medium">Medium</span></td>
+          <td class="f-title">
+            <b>Sandwich Exposure on Swap Route</b>
+            <span>F-004 · mev</span>
+          </td>
+          <td class="f-desc">A parallel scenario (<code>sandwich_attack.yaml</code>) demonstrates a $4.24 profit per victim under the same params. Deterministic fee routing would compress the window; Jito-bundles already close much of it.</td>
+          <td class="f-loss">$4.24</td>
+        </tr>
+        <tr class="fr">
+          <td class="f-sev"><span class="sev-pill medium">Medium</span></td>
+          <td class="f-title">
+            <b>Reproducibility Assumes Seedable Oracle Mock</b>
+            <span>F-005 · simulator only</span>
+          </td>
+          <td class="f-desc">The simulator's determinism relies on the <code>--seed</code> flag plus a mocked Pyth account. In production the attack requires a real deviation vector; this simulator estimates the economic shape, not the on-chain feasibility.</td>
+          <td class="f-loss">N/A</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ─── Reproduce ─── -->
+<section class="repro" id="reproduce">
+  <div class="container">
+    <div class="repro-grid">
+      <div class="repro-copy">
+        <h2>Reproduce the <em>whole</em> post-mortem on your machine.</h2>
+        <p>
+          The simulator ships as a single TypeScript CLI with four verbs — <b>scan</b>, <b>attack</b>, <b>fuzz</b>, <b>report</b>. Every command in this dossier was produced from the same commit on the same seed. Clone it, run it, disagree with the findings, file a PR.
+        </p>
+        <p class="tiny">Runs locally. No devnet transactions. No RPC required.</p>
+      </div>
+
+      <div class="repro-term">
+        <div><span class="prompt">$</span> <span class="cmd">git clone github.com/economicfuzz/cli economicfuzz</span></div>
+        <div class="out">  cloning into 'economicfuzz'… done.</div>
+        <div><span class="prompt">$</span> <span class="cmd">cd economicfuzz && npm install</span></div>
+        <div class="out">  added 142 packages in 6s</div>
+        <div><span class="prompt">$</span> <span class="cmd">npx economicfuzz attack scenarios/oracle_manipulation.yaml --seed 42</span></div>
+        <div class="out">  ▸ parsing scenario …                    <span class="ok">ok</span></div>
+        <div class="out">  ▸ step 1 — manipulate_oracle (−50%)     <span class="ok">ok</span></div>
+        <div class="out">  ▸ step 2 — execute_liquidation (×24)    <span class="ok">ok</span></div>
+        <div class="out">  ▸ step 3 — restore_price                <span class="ok">ok</span></div>
+        <div class="out">  ▸ invariants                            <span class="bad">2 / 2 VIOLATED</span></div>
+        <div class="out">  ▸ gross $401.50   tx cost $1.50   <b>net $400.00</b></div>
+        <div><span class="prompt">$</span> <span class="cmd">npx economicfuzz fuzz scenarios/oracle_manipulation.yaml</span></div>
+        <div class="out">  ▸ gen 100 · best fitness <b>718.92</b> · 5000/5000 profitable</div>
+        <div><span class="prompt">$</span> <span class="cmd">npx economicfuzz report .ecofuzz/</span></div>
+        <div class="out">  ▸ 5 findings · 1 critical · 2 high · 2 medium</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── Colophon ─── -->
+<footer class="colophon">
+  <div class="container">
+    <div class="colo-grid">
+      <div>
+        <div class="colo-brand">The <em>Devnet</em> Post</div>
+        <div class="colo-tag">Adversarial economic simulation for Solana. Filed from the desk of EconomicFuzz, 19 April 2026.</div>
+      </div>
+      <div>
+        <h4>Dossier</h4>
+        <ul>
+          <li><a href="#exhibit-a">Exhibit A — Scenario</a></li>
+          <li><a href="#walkthrough">Exhibit B — Walkthrough</a></li>
+          <li><a href="#flow">Exhibit C — Fund Flow</a></li>
+          <li><a href="#findings">Exhibit D — Findings</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Source</h4>
+        <ul>
+          <li><a href="https://github.com/economicfuzz/cli" target="_blank" rel="noopener">GitHub repo</a></li>
+          <li><a href="#reproduce">CLI quick-start</a></li>
+          <li><a href="#exhibit-a">YAML DSL spec</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Disclaimer</h4>
+        <ul>
+          <li>Devnet-only simulator.</li>
+          <li>Not a vulnerability disclosure.</li>
+          <li>No live systems contacted.</li>
+          <li>Findings illustrative, not audited.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="colo-foot">
+      <div>© 2026 EconomicFuzz · Set in Fraunces, Newsreader &amp; Martian Mono</div>
+      <div>BUILT FOR COLOSSEUM · SOLANA DEVNET PRESS</div>
+    </div>
+  </div>
+</footer>
+
+<!-- GSAP -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+
+<script>
+(() => {
+  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  gsap.registerPlugin(ScrollTrigger);
+
+  // Native scroll — we dropped Lenis because the CDN is blocked by ORB in
+  // some browsers, and GSAP ScrollTrigger reads scroll events directly.
+
+  // ── Copy button ────────────────────────────────
+  document.querySelectorAll('[data-copy]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      navigator.clipboard.writeText(btn.dataset.copy).then(() => {
+        btn.classList.add('done');
+        const lbl = btn.querySelector('.copy-label');
+        const old = lbl.textContent;
+        lbl.textContent = 'Copied';
+        setTimeout(() => { lbl.textContent = old; btn.classList.remove('done'); }, 1400);
+      });
+    });
+  });
+
+  // ── YAML type-on (scroll-scrubbed) ─────────────
+  const yamlLines = [
+    ['com', '# Oracle Manipulation · INCIDENT-001'],
+    ['kv',  'name: "oracle_manipulation_basic"'],
+    ['kv',  'attack_type: "oracle_manipulation"'],
+    ['',    ''],
+    ['sec', 'setup:'],
+    ['kv',  '  fork_from: "devnet"'],
+    ['kv',  '  accounts:'],
+    ['kv',  '    pyth_feed: "<pyth_feed_address>"'],
+    ['kv',  '    pool: "<pool_address>"'],
+    ['',    ''],
+    ['sec', 'attack_sequence:'],
+    ['tag', '  - action: "manipulate_oracle"'],
+    ['kv',  '    params:'],
+    ['kv',  '      deviation_pct: 50'],
+    ['kv',  '      direction: "down"'],
+    ['kv',  '      duration_slots: 10'],
+    ['tag', '  - action: "execute_liquidation"'],
+    ['kv',  '    params:'],
+    ['kv',  '      victim: "<victim_position>"'],
+    ['tag', '  - action: "restore_price"'],
+    ['',    ''],
+    ['sec', 'invariants:'],
+    ['kv',  '  - check: "attacker_profit"'],
+    ['kv',  '    condition: "after > before"'],
+    ['kv',  '  - check: "tvl_drain"'],
+    ['kv',  '    condition: "tvl_after < tvl_before * 0.95"']
+  ];
+
+  const yamlTarget = document.getElementById('yamlTarget');
+  const renderYaml = (chars) => {
+    let total = 0;
+    let out = '';
+    for (const [kind, line] of yamlLines) {
+      if (total >= chars) break;
+      const visible = line.slice(0, Math.max(0, chars - total));
+      total += line.length + 1;
+      let cls = 'tok-key';
+      if (kind === 'com') cls = 'tok-com';
+      else if (kind === 'sec') cls = 'tok-key';
+      else if (kind === 'tag') cls = 'tok-tag';
+      else if (kind === 'kv') {
+        // colour strings and numbers
+        out += visible
+          .replace(/("[^"]*")/g, '<span class="tok-str">$1</span>')
+          .replace(/\b(\d+(?:\.\d+)?)\b/g, '<span class="tok-num">$1</span>') + '\n';
+        continue;
+      }
+      out += `<span class="${cls}">${visible}</span>\n`;
     }
+    yamlTarget.innerHTML = out + '<span class="type-cursor"></span>';
+  };
 
-    function runSimulation() {
-      if (running) return;
-      running = true;
-      const btn = document.getElementById('runBtn');
-      btn.classList.add('running');
-      btn.textContent = '● Running...';
+  const totalChars = yamlLines.reduce((a, [, l]) => a + l.length + 1, 0);
+  // Start empty so the ScrollTrigger's scrub always has somewhere to grow from —
+  // previously we painted 15% as a "preview", which then reset to 0 the moment the
+  // trigger activated, flashing visibly.
+  renderYaml(0);
 
-      const output = document.getElementById('simOutput');
-      output.innerHTML = '';
+  ScrollTrigger.create({
+    trigger: '#evidenceCard',
+    start: 'top 85%',
+    end: 'bottom 40%',
+    scrub: .6,
+    onUpdate(self) {
+      renderYaml(Math.floor(totalChars * self.progress));
+    }
+  });
 
-      const steps = SCENARIOS[currentScenario].output;
-      let i = 0;
+  // ── Hero reveals ───────────────────────────────
+  if (!reduced) {
+    gsap.from('.hero-kicker', {y:14, opacity:0, duration:.8, ease:'power3.out'});
+    gsap.from('.hero-title', {y:30, opacity:0, duration:1.2, ease:'power3.out', delay:.05});
+    gsap.from('.hero-lede', {y:20, opacity:0, duration:1, ease:'power3.out', delay:.15});
+    gsap.from('.chart-card', {y:24, opacity:0, duration:1, ease:'power3.out', delay:.25});
+    gsap.from('.hero-meta-grid > div', {y:14, opacity:0, duration:.6, ease:'power3.out', stagger:.06, delay:.45});
+    gsap.from('.hero-actions', {y:10, opacity:0, duration:.6, ease:'power3.out', delay:.75});
+  }
 
-      function next() {
-        if (i >= steps.length) {
-          btn.classList.remove('running');
-          btn.textContent = '▶ Execute';
-          running = false;
-          return;
+  // ── Oracle price chart self-draw + scrubber ───
+  const oLine = document.getElementById('oracleLine');
+  const oArea = document.getElementById('oracleArea');
+  const liqMark = document.getElementById('liqMark');
+  const scrub = document.getElementById('oracleScrub');
+  if (oLine) {
+    const lineLen = oLine.getTotalLength();
+    oLine.style.strokeDasharray = lineLen;
+    oLine.style.strokeDashoffset = lineLen;
+    oArea.style.opacity = 0;
+    gsap.to(oLine, {
+      strokeDashoffset: 0, duration: 2.4, ease: 'power2.out', delay: .5
+    });
+    gsap.to(oArea, { opacity: 1, duration: 1.4, ease: 'power2.out', delay: 1.3 });
+    gsap.to(liqMark, { opacity: 1, duration: .5, delay: 1.7, ease: 'back.out(2)' });
+  }
+
+  // subtle live scrubber scanning the chart
+  if (!reduced && scrub) {
+    gsap.set(scrub, { opacity: .85, left: 0 });
+    gsap.to(scrub, {
+      left: '100%', duration: 6, ease: 'none', repeat: -1, yoyo: true, delay: 2.2
+    });
+  }
+
+  // counter up for hero stats
+  const countTargets = [
+    { sel: '.hero-meta-grid dd', idx: 1, to: 50, prefix: '', suffix: '%' }, // deviation
+    { sel: '.hero-meta-grid dd', idx: 3, to: 400, prefix: '$' }            // net gain
+  ];
+  countTargets.forEach(({sel, idx, to, prefix = '', suffix = ''}) => {
+    const el = document.querySelectorAll(sel)[idx];
+    if (!el) return;
+    // Paint the zero state synchronously so we don't flash the final value
+    // (present in the HTML for no-JS users) before the counter kicks in.
+    el.textContent = prefix + '0' + suffix;
+    const obj = { n: 0 };
+    gsap.to(obj, {
+      n: to, duration: 1.6, ease: 'power2.out', delay: 1,
+      onUpdate: () => { el.textContent = prefix + Math.round(obj.n) + suffix; }
+    });
+  });
+
+  // ── Article reveal ─────────────────────────────
+  gsap.utils.toArray('.article-body > p').forEach(p => {
+    gsap.from(p, {y:26, opacity:0, duration:.9, ease:'power3.out',
+      scrollTrigger:{trigger:p, start:'top 86%'}
+    });
+  });
+  gsap.from('.article-drop', {y:40, opacity:0, duration:1, ease:'power3.out',
+    scrollTrigger:{trigger:'.article', start:'top 75%'}
+  });
+
+  // ── Horizontal scroll ──────────────────────────
+  const horz = document.getElementById('horz');
+  const panels = gsap.utils.toArray('.horz-panel');
+  document.getElementById('whTot').textContent = String(panels.length).padStart(2, '0');
+
+  ScrollTrigger.matchMedia({
+    '(min-width: 961px)': () => {
+      // Horizontal scroll + exit fade as one timeline. The exit buffer
+      // (60vh) gives the horz content time to fade out BEFORE the pin
+      // releases — otherwise release exposes 100vh of parchment above a
+      // section that was until a moment ago covering the viewport, and
+      // the eye reads it as a 300px jump.
+      const horizDist = () => horz.scrollWidth - window.innerWidth;
+      const exitBuffer = () => Math.round(window.innerHeight * 0.35);
+
+      const outro = document.getElementById('outroStamp');
+      const outroTotal = document.querySelector('.horz-panel.outro .outro-total');
+      if (outro) gsap.set(outro, { scale: 1.4, rotation: -10, opacity: 0, filter: 'blur(10px)' });
+      if (outroTotal) gsap.set(outroTotal, { opacity: 0, y: 16 });
+
+      const tl = gsap.timeline({
+        scrollTrigger: {
+          trigger: '.walkthrough',
+          pin: true,
+          scrub: .8,
+          anticipatePin: 1,
+          end: () => '+=' + (horizDist() + exitBuffer()),
+          invalidateOnRefresh: true,
+          onUpdate(self) {
+            // counter maps to horizontal-only progress, not the exit fade
+            const horizFrac = horizDist() / (horizDist() + exitBuffer());
+            const hp = Math.min(1, self.progress / horizFrac);
+            const idx = Math.round(hp * (panels.length - 1));
+            document.getElementById('whNow').textContent = String(idx + 1).padStart(2, '0');
+          }
         }
-        const step = steps[i++];
-        setTimeout(() => {
-          output.innerHTML += (step.t === '' ? '<br>' : step.t + '<br>');
-          output.scrollTop = output.scrollHeight;
-          next();
-        }, step.d);
+      });
+
+      // phase 1 — horizontal slide across panels
+      tl.to(panels, {
+        xPercent: -100 * (panels.length - 1),
+        ease: 'none',
+        duration: 1
+      }, 0);
+
+      // during the last ~12% of phase 1 — slam-in the outro stamp & total
+      if (outro) {
+        tl.to(outro, {
+          scale: 1, rotation: -3, opacity: 1, filter: 'blur(0px)',
+          ease: 'back.out(1.4)', duration: 0.09
+        }, 0.88);
+      }
+      if (outroTotal) {
+        tl.to(outroTotal, {
+          opacity: 1, y: 0, ease: 'power2.out', duration: 0.07
+        }, 0.94);
       }
 
-      next();
-    }
+      // phase 2 — exit fade. Fades the entire .walkthrough section (not
+      // just .horz) because .walkthrough itself has the dark bg — if only
+      // the content fades, the wrapper still visibly jumps when pin ends.
+      const exitDurFrac = 0.35;
+      tl.to('.walkthrough', {
+        opacity: 0, ease: 'power2.in', duration: exitDurFrac
+      }, 1);
+      tl.to(horz, {
+        y: -60, ease: 'power2.in', duration: exitDurFrac
+      }, 1);
 
-    // Init
-    document.getElementById('yamlCode').innerHTML = SCENARIOS.oracle.yaml;
-  </script>
+      // per-panel reveals — now keyed to the timeline (which includes phase 1)
+      panels.forEach((p) => {
+        if (p.classList.contains('outro') || p.classList.contains('intro')) return;
+        const body = p.querySelector('.step-body');
+        if (body) {
+          gsap.from(body, {
+            opacity: 0, y: 30, ease: 'power2.out',
+            scrollTrigger: {
+              trigger: p, containerAnimation: tl,
+              start: 'left 70%', end: 'left 30%', scrub: .6
+            }
+          });
+        }
+        const bar = p.querySelector('.sv-bar-fill');
+        if (bar) {
+          const w = bar.style.getPropertyValue('--w') || '70%';
+          bar.style.width = '0%';
+          gsap.to(bar, {
+            width: w, ease: 'none',
+            scrollTrigger: {
+              trigger: p, containerAnimation: tl,
+              start: 'left 60%', end: 'left 20%', scrub: true
+            }
+          });
+        }
+      });
+    },
+    '(max-width: 960px)': () => {
+      // mobile: normal vertical scroll, simple reveal per panel
+      panels.forEach(p => {
+        p.style.width = '100%';
+        p.style.height = 'auto';
+        p.style.padding = '70px 20px';
+      });
+      horz.style.display = 'block';
+      horz.style.width = '100%';
+      horz.style.height = 'auto';
+    }
+  });
+
+  // ── Flow paths self-draw ───────────────────────
+  gsap.utils.toArray('#flowSvg .fpath').forEach(p => {
+    const len = p.getTotalLength();
+    p.style.strokeDasharray = len;
+    p.style.strokeDashoffset = len;
+    gsap.to(p, {
+      strokeDashoffset: 0,
+      ease: 'power2.out',
+      duration: 1.6,
+      scrollTrigger: { trigger: '#flowSvg', start: 'top 72%' }
+    });
+  });
+  gsap.from('#fnodes g', {
+    opacity: 0, y: 16, duration: .7, ease: 'power3.out', stagger: .08,
+    scrollTrigger: { trigger: '#flowSvg', start: 'top 78%' }
+  });
+  gsap.from('.flow-legend .lg', {
+    opacity: 0, y: 14, duration: .6, ease: 'power3.out', stagger: .08,
+    scrollTrigger: { trigger: '.flow-legend', start: 'top 88%' }
+  });
+
+  // ── Findings stamp-in ──────────────────────────
+  gsap.utils.toArray('.fr').forEach((row, i) => {
+    gsap.from(row, {
+      y: 40, opacity: 0, duration: .8, ease: 'power3.out',
+      scrollTrigger: { trigger: row, start: 'top 88%' }
+    });
+    const stamp = row.querySelector('.stamp-el');
+    if (stamp) {
+      gsap.fromTo(stamp,
+        { scale: 3, opacity: 0, rotate: -28 },
+        {
+          scale: 1, opacity: .18, rotate: -12, duration: .7, ease: 'back.out(1.4)',
+          scrollTrigger: { trigger: row, start: 'top 75%' }
+        }
+      );
+    }
+  });
+
+  // ── Nav active ─────────────────────────────────
+  // ScrollTrigger.batch fires once per batch entry — wrong API for tracking
+  // which single section is currently at centre. Use one trigger per section.
+  const navLinks = document.querySelectorAll('.nav a[href^="#"]');
+  const sections = Array.from(navLinks)
+    .map(a => ({ link: a, sec: document.querySelector(a.getAttribute('href')) }))
+    .filter(x => x.sec);
+  function setActive(link) {
+    navLinks.forEach(a => a.classList.toggle('active', a === link));
+  }
+  sections.forEach(({ link, sec }) => {
+    ScrollTrigger.create({
+      trigger: sec,
+      start: 'top center',
+      end: 'bottom center',
+      onEnter: () => setActive(link),
+      onEnterBack: () => setActive(link),
+    });
+  });
+})();
+</script>
 </body>
 </html>
