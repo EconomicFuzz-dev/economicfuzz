@@ -1,0 +1,47 @@
+# Sandwich Attack Scenario
+# Front-run + back-run a victim swap to extract value
+
+name: "sandwich_basic"
+description: "Classic DEX sandwich — front-run with buy, victim swaps, back-run with sell"
+attack_type: "sandwich"
+
+setup:
+  fork_from: "devnet"
+  accounts:
+    amm_pool: "<pool_address>"
+    victim_wallet: "<victim>"
+
+attack_sequence:
+  - action: "frontrun_buy"
+    params:
+      pool: "<pool_address>"
+      token_in: "SOL"
+      amount: 100
+      slippage_tolerance: 0.5
+
+  - action: "victim_swap"
+    params:
+      pool: "<pool_address>"
+      token_in: "USDC"
+      amount: 1000
+
+  - action: "backrun_sell"
+    params:
+      pool: "<pool_address>"
+      token_in: "USDC"
+      amount: 100
+
+invariants:
+  - check: "sandwich_profit"
+    condition: "sandwich_profit > 0"
+  - check: "victim_slippage"
+    condition: "victim_received < victim_expected * 0.98"
+
+fuzzer_config:
+  strategy: "genetic"
+  parameters:
+    frontrun_amount:
+      min: 10
+      max: 500
+  population: 30
+  generations: 50

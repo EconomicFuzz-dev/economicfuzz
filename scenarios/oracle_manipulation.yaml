@@ -1,0 +1,50 @@
+# Oracle Manipulation Attack Scenario
+# Simulates Pyth feed deviation to exploit price-dependent protocols
+
+name: "oracle_manipulation_basic"
+description: "Deviate oracle price by X% and observe protocol behavior"
+attack_type: "oracle_manipulation"
+
+setup:
+  fork_from: "devnet"
+  accounts:
+    pyth_feed: "<pyth_feed_address>"
+    pool: "<pool_address>"
+
+attack_sequence:
+  - action: "manipulate_oracle"
+    params:
+      feed: "<pyth_feed_address>"
+      deviation_pct: 50
+      direction: "down"
+      duration_slots: 10
+
+  - action: "execute_liquidation"
+    params:
+      program: "<target_program>"
+      instruction: "liquidate"
+      victim: "<victim_position>"
+
+  - action: "restore_price"
+    params:
+      feed: "<pyth_feed_address>"
+      deviation_pct: 0
+      direction: "restore"
+
+invariants:
+  - check: "attacker_profit"
+    condition: "attacker_balance_after > attacker_balance_before"
+  - check: "protocol_tvl_drain"
+    condition: "protocol_tvl_after < protocol_tvl_before * 0.95"
+
+fuzzer_config:
+  strategy: "genetic"
+  parameters:
+    deviation_pct:
+      min: 10
+      max: 90
+    duration_slots:
+      min: 1
+      max: 50
+  population: 50
+  generations: 100
