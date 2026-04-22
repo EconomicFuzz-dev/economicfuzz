@@ -1,0 +1,55 @@
+# Flash Loan Reentrancy Scenario
+# Borrow → manipulate → repay loop, exit before settlement
+
+name: "flash_loan_reentrancy_basic"
+description: "Borrow flash loan, manipulate price during single tx, repay before block close"
+attack_type: "flash_loan_reentrancy"
+
+setup:
+  fork_from: "devnet"
+  accounts:
+    lending_pool: "<flash_lender_address>"
+    target_amm: "<amm_pool_address>"
+    attacker: "<attacker_wallet>"
+
+attack_sequence:
+  - action: "borrow_flash_loan"
+    params:
+      pool: "<flash_lender_address>"
+      asset: "USDC"
+      amount: 1_000_000
+      callback: "manipulate_then_repay"
+
+  - action: "swap_inflate_price"
+    params:
+      pool: "<amm_pool_address>"
+      token_in: "USDC"
+      amount: 800_000
+      direction: "up"
+
+  - action: "drain_collateralized_position"
+    params:
+      target: "<lending_market>"
+      victim: "<over_leveraged_position>"
+
+  - action: "repay_flash_loan"
+    params:
+      pool: "<flash_lender_address>"
+      amount: 1_000_000
+      fee_bps: 9
+
+invariants:
+  - name: "attacker_profit_lt_zero"
+    expression: "attacker_balance_after - attacker_balance_before < 0"
+    severity: "high"
+
+  - name: "lending_pool_solvent"
+    expression: "lending_pool_assets >= lending_pool_liabilities"
+    severity: "critical"
+
+fuzzing:
+  param_ranges:
+    borrow_amount: [100_000, 10_000_000]
+    swap_size: [50_000, 5_000_000]
+  generations: 50
+  population: 30
