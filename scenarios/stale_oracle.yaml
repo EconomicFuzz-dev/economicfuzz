@@ -1,0 +1,51 @@
+# Stale Oracle Attack Scenario
+# Exploits a consumer that ignores `publish_time` on a Pyth feed
+
+name: "stale_oracle_drift_30s"
+description: "Hold stale price for 30s while market moves, exploit lazy consumer"
+attack_type: "stale_oracle"
+
+setup:
+  fork_from: "devnet"
+  accounts:
+    pyth_feed: "<pyth_feed_address>"
+    consumer_program: "<lending_or_perps>"
+    market_oracle: "<reference_dex_pool>"
+
+attack_sequence:
+  - action: "freeze_oracle"
+    params:
+      feed: "<pyth_feed_address>"
+      duration_slots: 75   # ~30s on Solana mainnet
+      mode: "halt_publish"
+
+  - action: "wait_for_price_drift"
+    params:
+      reference: "<reference_dex_pool>"
+      drift_threshold_pct: 4
+
+  - action: "exploit_stale_quote"
+    params:
+      consumer: "<consumer_program>"
+      action: "open_position"
+      side: "favorable_to_attacker"
+
+  - action: "unfreeze_oracle"
+    params:
+      feed: "<pyth_feed_address>"
+
+invariants:
+  - name: "consumer_checks_publish_time"
+    expression: "consumer.uses_publish_time == true"
+    severity: "critical"
+
+  - name: "max_oracle_age_enforced"
+    expression: "consumer.max_oracle_age_slots <= 25"
+    severity: "high"
+
+fuzzing:
+  param_ranges:
+    duration_slots: [25, 200]
+    drift_threshold_pct: [1, 15]
+  generations: 40
+  population: 25
