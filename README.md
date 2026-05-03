@@ -4,42 +4,11 @@ Economic attack simulation framework for DeFi protocols on Solana.
 
 ## Threat Model
 
-EconomicFuzz simulates economic attacks across five categories:
+EconomicFuzz simulates three categories of economic attacks:
 
 1. **Oracle Manipulation** -- Price feed deviation exploits targeting liquidation logic
-2. **Flash Loan Attacks** -- Single-transaction arbitrage and drain patterns, including reentrancy paths
-3. **MEV Extraction** -- Sandwich attacks, frontrunning, and JIT liquidity withdrawal
-4. **Stale Oracle Exploits** -- Lazy consumers that ignore `publish_time` on Pyth feeds
-5. **Governance Griefing** -- Spam proposals stalling the queue, blocking real votes
-
-### Scope
-
-EconomicFuzz **does** model:
-
-- Tx-level attack sequences against on-chain state forked from devnet
-- Genetic search over scenario parameters (slippage, oracle drift, borrow size)
-- Invariant breaches (attacker profit, pool solvency, max-pending-proposals)
-- Cost / gas accounting for each step in the chain
-
-EconomicFuzz **does not** model:
-
-- Mainnet replay or live exploit execution -- forks only, never sends real txs
-- Off-chain coordination (bot mempools, validator tipping, social engineering)
-- Cryptographic primitive failures -- assumes signatures, hashes, and PDAs work
-- Long-term game-theoretic outcomes beyond a single simulation horizon
-
-### Adversary Capability
-
-The default attacker is assumed to have:
-
-- Public knowledge of program source / IDL
-- Ability to submit any tx an unprivileged user could submit
-- Access to a flash loan provider (10M+ USDC capacity)
-- One block of priority over honest users for ordering attacks
-
-Attacks requiring validator collusion, root-key compromise, or supply-chain
-backdoors are **out of scope** -- those are surface for separate threat
-modeling, not economic simulation.
+2. **Flash Loan Attacks** -- Single-transaction arbitrage and drain patterns
+3. **MEV Extraction** -- Sandwich attacks, frontrunning, and JIT liquidity
 
 ## Quick Start
 
@@ -47,16 +16,16 @@ modeling, not economic simulation.
 cd cli && npm install && npm run build
 
 # Scan a program for attack surface
-economicfuzz scan <PROGRAM_ID>
+ecofuzz scan <PROGRAM_ID>
 
 # Run a YAML attack scenario
-economicfuzz attack scenarios/oracle_manipulation.yaml
+ecofuzz attack scenarios/oracle_manipulation.yaml
 
 # Evolve optimal attack parameters
-economicfuzz fuzz scenarios/sandwich_attack.yaml
+ecofuzz fuzz scenarios/sandwich_attack.yaml
 
 # Generate vulnerability report
-economicfuzz report ./output
+ecofuzz report ./output
 ```
 
 ## YAML Scenario Format
@@ -136,7 +105,7 @@ fuzzer_config:
 ## Report Output
 
 ```
-$ economicfuzz report ./output
+$ ecofuzz report ./output
 
   Vulnerability Report
   ════════════════════════════════════════
@@ -161,30 +130,13 @@ $ economicfuzz report ./output
   Report saved to: ./output/report_2026-04-10.json
 ```
 
-## Toolchain
+## Stack
 
 - TypeScript CLI (commander.js, chalk, ora, yaml)
 - Genetic fuzzer (population, crossover, mutation, convergence)
 - Oracle price simulator
 - Step-by-step attack executor
 
-## Scenario Gallery
-
-Bundled YAML attack scenarios in `scenarios/`:
-
-| file | category | what it models |
-|------|----------|----------------|
-| `oracle_manipulation.yaml`     | oracle  | Pyth feed deviation against a price-dependent pool |
-| `oracle_drift_cooldown.yaml`   | oracle  | Pulsed deviation evading consecutive-sample detectors |
-| `stale_oracle.yaml`            | oracle  | Lazy consumer ignoring `publish_time` on a Pyth feed |
-| `sandwich_attack.yaml`         | mev     | Front-run + back-run around a target swap |
-| `flash_loan_reentrancy.yaml`   | flash   | Single-tx drain via re-entered borrow path |
-| `jit_liquidity_drain.yaml`     | mev     | JIT add/remove liquidity around a victim trade |
-| `governance_grief.yaml`        | gov     | Spam proposals stalling the queue |
-| `double_spend_reorg.yaml`      | consensus | Tx replay across a forced fork |
-
-Run any scenario via `economicfuzz attack scenarios/<file>.yaml`. The fuzzer mutates parameters within the bounds declared in `fuzzer_config:` and reports invariant breaks per generation.
-
 ## License
 
-Released under MIT — see [LICENSE](LICENSE). Scenarios, fuzzer harness, and reporting code are published openly so defenders can replicate findings against systems they own or have written authorization to test. Use against third-party deployments without consent falls outside the threat model documented above and outside the permissions granted by this license. The "AS IS" clause is not a footnote: an economic-attack simulator can produce false negatives, and any invariant that holds in the harness must still be argued in production.
+MIT

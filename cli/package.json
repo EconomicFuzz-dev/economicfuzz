@@ -1,44 +1,10 @@
 {
-  "name": "economicfuzz",
+  "name": "ecofuzz",
   "version": "0.1.0",
-  "description": "Economic attack simulation framework for Solana DeFi — oracle manipulation, flash loans, MEV sandwiches, governance griefing. Runs YAML scenarios + genetic-fuzz parameter search, exits non-zero on invariant breach.",
-  "bin": { "economicfuzz": "./dist/index.js" },
-  "main": "./dist/index.js",
-  "files": [
-    "dist/",
-    "scenarios/",
-    "README.md",
-    "LICENSE"
-  ],
+  "bin": { "ecofuzz": "./dist/index.js" },
   "scripts": {
     "build": "tsc",
-    "dev": "ts-node src/index.ts",
-    "prepublishOnly": "npm run build"
-  },
-  "keywords": [
-    "solana",
-    "defi",
-    "security",
-    "fuzzer",
-    "audit",
-    "anchor",
-    "oracle",
-    "mev",
-    "flash-loan",
-    "attack-simulation"
-  ],
-  "homepage": "https://economicfuzz.vercel.app",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/EconomicFuzz-dev/economicfuzz.git"
-  },
-  "bugs": {
-    "url": "https://github.com/EconomicFuzz-dev/economicfuzz/issues"
-  },
-  "author": "ghost_researcher <economicfuzz.lab@outlook.com>",
-  "license": "MIT",
-  "engines": {
-    "node": ">=18"
+    "dev": "ts-node src/index.ts"
   },
   "dependencies": {
     "commander": "^12.0.0",

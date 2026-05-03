@@ -1,54 +1,25 @@
 #!/usr/bin/env node
 import { Command } from "commander";
 import * as fs from "fs";
-import * as path from "path";
 import chalk from "chalk";
 import { loadScenario, validateScenario } from "./core/scenario-parser";
 import { executeAttack, AttackResult } from "./core/attack-executor";
 import { runGeneticFuzzer } from "./core/genetic-fuzzer";
-import { setSeed } from "./core/rng";
-
-function parseSeed(raw: string | undefined): number | undefined {
-  if (raw === undefined) return undefined;
-  const n = Number(raw);
-  if (!Number.isFinite(n) || !Number.isInteger(n) || n < 0) {
-    throw new Error(`--seed must be a non-negative integer, got: ${raw}`);
-  }
-  return n;
-}
-
-function safeOutputDir(userDir: string): string {
-  const resolved = path.resolve(process.cwd(), userDir);
-  const root = path.resolve(process.cwd());
-  if (!resolved.startsWith(root + path.sep) && resolved !== root) {
-    throw new Error(
-      `output dir escapes working directory: ${userDir} → ${resolved}`
-    );
-  }
-  return resolved;
-}
 
 const program = new Command();
 
 program
-  .name("economicfuzz")
+  .name("ecofuzz")
   .description("economic attack simulation for DeFi protocols")
   .version("0.1.0");
 
-// base58 alphabet, 32-44 chars — covers all Ed25519 pubkeys
-const PUBKEY_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
-
 program
   .command("scan <program-id>")
-  .description("show generic DeFi attack surface checklist (heuristic, not on-chain)")
+  .description("scan a deployed program for economic vulnerabilities")
   .option("-r, --rpc <url>", "RPC endpoint", "https://api.devnet.solana.com")
-  .action((programId, _opts) => {
-    if (!PUBKEY_RE.test(programId)) {
-      console.error(`error: '${programId}' is not a valid Solana program id (base58, 32-44 chars)`);
-      process.exit(1);
-    }
-    console.log(chalk.bold(`\n  economicfuzz scan — ${programId}\n`));
-    console.log(chalk.gray("  attack surface checklist (heuristic — runs the same set of checks against any program):"));
+  .action((programId, opts) => {
+    console.log(chalk.bold(`\n  ecofuzz scan — ${programId}\n`));
+    console.log(chalk.gray("  attack surface analysis:"));
     console.log(chalk.gray("  " + "─".repeat(50)));
     console.log(`  ${chalk.red("HIGH")}   oracle dependency     — Pyth/Switchboard feed manipulation`);
     console.log(`  ${chalk.red("HIGH")}   flash loan exposure   — uncollateralized borrow vectors`);
@@ -56,17 +27,14 @@ program
     console.log(`  ${chalk.yellow("MED")}    liquidation threshold — health factor edge cases`);
     console.log(`  ${chalk.blue("LOW")}    MEV opportunity       — priority fee sensitivity`);
     console.log(chalk.gray("  " + "─".repeat(50)));
-    console.log(chalk.gray("  note: a deeper RPC-backed scan is on the roadmap; for now, see economicfuzz attack <scenario>"));
-    console.log(`\n  ${chalk.gray("run")} economicfuzz attack <scenario.yaml> ${chalk.gray("to simulate")}`);
+    console.log(`\n  ${chalk.gray("run")} ecofuzz attack <scenario.yaml> ${chalk.gray("to simulate")}`);
   });
 
 program
   .command("attack <scenario-file>")
   .description("run YAML attack scenario against forked state")
-  .option("-s, --seed <int>", "seed PRNG for reproducible runs")
-  .action((file, opts) => {
+  .action((file) => {
     try {
-      setSeed(parseSeed(opts.seed));
       const scenario = loadScenario(file);
       const errors = validateScenario(scenario);
 
@@ -83,24 +51,22 @@ program
       const result = executeAttack(scenario);
 
       // save result for report command
-      const resultsDir = ".economicfuzz";
+      const resultsDir = ".ecofuzz";
       fs.mkdirSync(resultsDir, { recursive: true });
       fs.writeFileSync(`${resultsDir}/last-attack.json`, JSON.stringify(result, null, 2));
 
       for (const step of result.steps) {
         const icon = step.success ? chalk.green("✓") : chalk.red("✗");
         console.log(`  ${icon} step ${step.step}: ${step.action}`);
-        const p = step.output.profit;
-        if (typeof p === "number" && Number.isFinite(p) && p !== 0) {
-          console.log(`    ${chalk.yellow("profit:")} ${chalk.green(p.toFixed(2))}`);
+        if (step.output.profit) {
+          const profitVal = (step.output.profit as number).toFixed(2);
+          console.log(`    ${chalk.yellow("profit:")} ${chalk.green(profitVal)}`);
         }
       }
 
       console.log(chalk.gray("  " + "─".repeat(50)));
-      console.log(`  gross profit:   ${chalk.gray(result.grossProfit.toFixed(2))}`);
-      console.log(`  tx cost:        ${chalk.gray("-" + result.txCostTotal.toFixed(2))}`);
       const profitColor = result.totalProfit > 0 ? chalk.red : chalk.green;
-      console.log(`  net profit:     ${profitColor(result.totalProfit.toFixed(2))}`);
+      console.log(`  total profit:   ${profitColor(result.totalProfit.toFixed(2))}`);
       console.log(`  invariants:     ${result.invariantsPassed}/${result.invariantsChecked} passed`);
       console.log(`  duration:       ${chalk.gray(result.duration + "ms")}`);
     } catch (e) {
@@ -112,10 +78,8 @@ program
 program
   .command("fuzz <scenario-file>")
   .description("genetic fuzzer — evolve attack parameters automatically")
-  .option("-s, --seed <int>", "seed PRNG for reproducible runs")
-  .action((file, opts) => {
+  .action((file) => {
     try {
-      setSeed(parseSeed(opts.seed));
       const scenario = loadScenario(file);
 
       console.log(chalk.bold(`\n  genetic fuzzer — ${scenario.name}`));
@@ -125,7 +89,7 @@ program
       const result = runGeneticFuzzer(scenario);
 
       // save for report
-      const fuzzDir = ".economicfuzz";
+      const fuzzDir = ".ecofuzz";
       fs.mkdirSync(fuzzDir, { recursive: true });
       fs.writeFileSync(`${fuzzDir}/last-fuzz.json`, JSON.stringify(result, null, 2));
 
@@ -150,47 +114,18 @@ program
   .command("report <output-dir>")
   .description("generate vulnerability report from last run")
   .action((dir) => {
-    let outDir: string;
-    try {
-      outDir = safeOutputDir(dir);
-    } catch (e) {
-      console.error(`error: ${e instanceof Error ? e.message : e}`);
-      process.exit(1);
-    }
-    fs.mkdirSync(outDir, { recursive: true });
+    fs.mkdirSync(dir, { recursive: true });
 
     let attackData: AttackResult | null = null;
     let fuzzData: Record<string, unknown> | null = null;
 
-    try {
-      attackData = JSON.parse(fs.readFileSync(".economicfuzz/last-attack.json", "utf-8"));
-    } catch (e) {
-      const code = (e as NodeJS.ErrnoException).code;
-      if (code !== "ENOENT") {
-        console.warn(chalk.yellow(`  warn: could not read last-attack.json (${code || "parse error"})`));
-      }
-    }
-    try {
-      fuzzData = JSON.parse(fs.readFileSync(".economicfuzz/last-fuzz.json", "utf-8"));
-    } catch (e) {
-      const code = (e as NodeJS.ErrnoException).code;
-      if (code !== "ENOENT") {
-        console.warn(chalk.yellow(`  warn: could not read last-fuzz.json (${code || "parse error"})`));
-      }
-    }
+    try { attackData = JSON.parse(fs.readFileSync(".ecofuzz/last-attack.json", "utf-8")); } catch {}
+    try { fuzzData = JSON.parse(fs.readFileSync(".ecofuzz/last-fuzz.json", "utf-8")); } catch {}
 
     const findings: Array<Record<string, unknown>> = [];
 
-    // severity buckets, in USD-equivalent profit. these are inputs to risk triage,
-    // not absolute thresholds — adjust per protocol TVL when consuming the report.
-    const SEV_CRITICAL_USD = 1000;
-    const SEV_HIGH_USD = 100;
-    const SEV_FUZZ_FITNESS_CRITICAL = 500;
-
     if (attackData) {
-      const severity =
-        attackData.totalProfit > SEV_CRITICAL_USD ? "CRITICAL" :
-        attackData.totalProfit > SEV_HIGH_USD ? "HIGH" : "MEDIUM";
+      const severity = attackData.totalProfit > 1000 ? "CRITICAL" : attackData.totalProfit > 100 ? "HIGH" : "MEDIUM";
       findings.push({
         id: `ECOFUZZ-${String(findings.length + 1).padStart(3, "0")}`,
         severity,
@@ -208,7 +143,7 @@ program
       if (profitable > 0) {
         findings.push({
           id: `ECOFUZZ-${String(findings.length + 1).padStart(3, "0")}`,
-          severity: bestFitness > SEV_FUZZ_FITNESS_CRITICAL ? "CRITICAL" : "HIGH",
+          severity: bestFitness > 500 ? "CRITICAL" : "HIGH",
           attack_type: "genetic_fuzz",
           profitable_variants: profitable,
           best_fitness: bestFitness,
@@ -219,7 +154,7 @@ program
 
     const report = {
       generated: new Date().toISOString(),
-      tool: "economicfuzz",
+      tool: "ecofuzz",
       version: "0.1.0",
       total_findings: findings.length,
       critical: findings.filter((f) => f.severity === "CRITICAL").length,
@@ -228,11 +163,11 @@ program
       findings,
     };
 
-    const reportPath = path.join(outDir, "economicfuzz-report.json");
+    const reportPath = `${dir}/ecofuzz-report.json`;
     fs.writeFileSync(reportPath, JSON.stringify(report, null, 2));
 
     // console output
-    console.log(chalk.bold("\n  economicfuzz vulnerability report\n"));
+    console.log(chalk.bold("\n  ecofuzz vulnerability report\n"));
     console.log(chalk.gray("  " + "═".repeat(50)));
     console.log(`  findings:   ${chalk.white(String(report.total_findings))}`);
     console.log(`  critical:   ${report.critical > 0 ? chalk.red(String(report.critical)) : chalk.green("0")}`);
