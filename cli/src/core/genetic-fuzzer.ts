@@ -1,5 +1,6 @@
 import { Scenario } from './scenario-parser'
 import { executeAttack, AttackResult } from './attack-executor'
+import { rand } from './rng'
 
 export interface Individual {
   params: Record<string, number>
@@ -16,8 +17,12 @@ export interface FuzzRunResult {
   profitableAttacks: number
 }
 
+// genetic-algorithm tunables — kept top-of-file so they're easy to find and tune
+const ELITE_FRACTION = 0.5  // top half survives unchanged each generation
+const MUTATION_RATE = 0.15  // probability a given parameter gets re-randomised
+
 function randomInRange(min: number, max: number): number {
-  return min + Math.random() * (max - min)
+  return min + rand() * (max - min)
 }
 
 function createIndividual(
@@ -45,7 +50,7 @@ function evaluateFitness(individual: Individual, scenario: Scenario): number {
 function crossover(a: Individual, b: Individual): Individual {
   const child: Record<string, number> = {}
   for (const key of Object.keys(a.params)) {
-    child[key] = Math.random() > 0.5 ? a.params[key] : b.params[key]
+    child[key] = rand() > 0.5 ? a.params[key] : b.params[key]
   }
   return { params: child, fitness: 0 }
 }
@@ -57,7 +62,7 @@ function mutate(
 ): Individual {
   const mutated = { ...individual.params }
   for (const [key, range] of Object.entries(paramRanges)) {
-    if (Math.random() < rate) {
+    if (rand() < rate) {
       mutated[key] = randomInRange(range.min, range.max)
     }
   }
@@ -92,16 +97,17 @@ export function runGeneticFuzzer(scenario: Scenario): FuzzRunResult {
     population.sort((a, b) => b.fitness - a.fitness)
     convergenceHistory.push(population[0].fitness)
 
-    // selection: keep top 50%
-    const survivors = population.slice(0, Math.floor(popSize / 2))
+    // selection: elites carry forward
+    const survivors = population.slice(0, Math.floor(popSize * ELITE_FRACTION))
 
-    // breed next generation
+    // breed next generation — explicit count beats while-with-mutation-target
+    const childrenNeeded = popSize - survivors.length
     const children: Individual[] = []
-    while (children.length < popSize - survivors.length) {
-      const parentA = survivors[Math.floor(Math.random() * survivors.length)]
-      const parentB = survivors[Math.floor(Math.random() * survivors.length)]
+    for (let i = 0; i < childrenNeeded; i++) {
+      const parentA = survivors[Math.floor(rand() * survivors.length)]
+      const parentB = survivors[Math.floor(rand() * survivors.length)]
       let child = crossover(parentA, parentB)
-      child = mutate(child, paramRanges, 0.15)
+      child = mutate(child, paramRanges, MUTATION_RATE)
       children.push(child)
     }
 
