@@ -2,8 +2,6 @@
 
 Economic attack simulation framework for DeFi protocols on Solana.
 
-**Project site:** <https://economicfuzz.vercel.app> · **npm:** `economicfuzz@0.1.0`
-
 ## Threat Model
 
 EconomicFuzz simulates economic attacks across five categories:
