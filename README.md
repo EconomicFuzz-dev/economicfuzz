@@ -161,7 +161,7 @@ $ ecofuzz report ./output
   Report saved to: ./output/report_2026-04-10.json
 ```
 
-## Stack
+## Toolchain
 
 - TypeScript CLI (commander.js, chalk, ora, yaml)
 - Genetic fuzzer (population, crossover, mutation, convergence)
