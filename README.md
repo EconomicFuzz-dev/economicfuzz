@@ -168,6 +168,23 @@ $ ecofuzz report ./output
 - Oracle price simulator
 - Step-by-step attack executor
 
+## Scenario Gallery
+
+Bundled YAML attack scenarios in `scenarios/`:
+
+| file | category | what it models |
+|------|----------|----------------|
+| `oracle_manipulation.yaml`     | oracle  | Pyth feed deviation against a price-dependent pool |
+| `oracle_drift_cooldown.yaml`   | oracle  | Pulsed deviation evading consecutive-sample detectors |
+| `stale_oracle.yaml`            | oracle  | Lazy consumer ignoring `publish_time` on a Pyth feed |
+| `sandwich_attack.yaml`         | mev     | Front-run + back-run around a target swap |
+| `flash_loan_reentrancy.yaml`   | flash   | Single-tx drain via re-entered borrow path |
+| `jit_liquidity_drain.yaml`     | mev     | JIT add/remove liquidity around a victim trade |
+| `governance_grief.yaml`        | gov     | Spam proposals stalling the queue |
+| `double_spend_reorg.yaml`      | consensus | Tx replay across a forced fork |
+
+Run any scenario via `ecofuzz attack scenarios/<file>.yaml`. The fuzzer mutates parameters within the bounds declared in `fuzzer_config:` and reports invariant breaks per generation.
+
 ## License
 
 MIT
