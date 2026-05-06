@@ -4,11 +4,42 @@ Economic attack simulation framework for DeFi protocols on Solana.
 
 ## Threat Model
 
-EconomicFuzz simulates three categories of economic attacks:
+EconomicFuzz simulates economic attacks across five categories:
 
 1. **Oracle Manipulation** -- Price feed deviation exploits targeting liquidation logic
-2. **Flash Loan Attacks** -- Single-transaction arbitrage and drain patterns
-3. **MEV Extraction** -- Sandwich attacks, frontrunning, and JIT liquidity
+2. **Flash Loan Attacks** -- Single-transaction arbitrage and drain patterns, including reentrancy paths
+3. **MEV Extraction** -- Sandwich attacks, frontrunning, and JIT liquidity withdrawal
+4. **Stale Oracle Exploits** -- Lazy consumers that ignore `publish_time` on Pyth feeds
+5. **Governance Griefing** -- Spam proposals stalling the queue, blocking real votes
+
+### Scope
+
+EconomicFuzz **does** model:
+
+- Tx-level attack sequences against on-chain state forked from devnet
+- Genetic search over scenario parameters (slippage, oracle drift, borrow size)
+- Invariant breaches (attacker profit, pool solvency, max-pending-proposals)
+- Cost / gas accounting for each step in the chain
+
+EconomicFuzz **does not** model:
+
+- Mainnet replay or live exploit execution -- forks only, never sends real txs
+- Off-chain coordination (bot mempools, validator tipping, social engineering)
+- Cryptographic primitive failures -- assumes signatures, hashes, and PDAs work
+- Long-term game-theoretic outcomes beyond a single simulation horizon
+
+### Adversary Capability
+
+The default attacker is assumed to have:
+
+- Public knowledge of program source / IDL
+- Ability to submit any tx an unprivileged user could submit
+- Access to a flash loan provider (10M+ USDC capacity)
+- One block of priority over honest users for ordering attacks
+
+Attacks requiring validator collusion, root-key compromise, or supply-chain
+backdoors are **out of scope** -- those are surface for separate threat
+modeling, not economic simulation.
 
 ## Quick Start
 
