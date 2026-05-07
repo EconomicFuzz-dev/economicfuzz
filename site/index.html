@@ -967,7 +967,7 @@
         <div class="step-num"><strong>06</strong><span class="step-slot">Slot&nbsp;—&nbsp;T+8</span></div>
         <div class="step-body">
           <h3>Invariants check. <em>Both</em> fail.</h3>
-          <p class="step-lede">The executor evaluates the two invariants declared at the foot of the YAML. Attacker balance is up. Protocol TVL is down by 6.2%. The scenario returns <code>violated: true</code> and writes the full trace to <code>.ecofuzz/last-attack.json</code>.</p>
+          <p class="step-lede">The executor evaluates the two invariants declared at the foot of the YAML. Attacker balance is up. Protocol TVL is down by 6.2%. The scenario returns <code>violated: true</code> and writes the full trace to <code>.economicfuzz/last-attack.json</code>.</p>
           <div class="step-note">Invariant engine · whitelisted expressions.</div>
         </div>
         <div class="step-visual">
@@ -1219,7 +1219,7 @@
         <div class="out">  ▸ gross $401.50   tx cost $1.50   <b>net $400.00</b></div>
         <div><span class="prompt">$</span> <span class="cmd">npx economicfuzz fuzz scenarios/oracle_manipulation.yaml</span></div>
         <div class="out">  ▸ gen 100 · best fitness <b>718.92</b> · 5000/5000 profitable</div>
-        <div><span class="prompt">$</span> <span class="cmd">npx economicfuzz report .ecofuzz/</span></div>
+        <div><span class="prompt">$</span> <span class="cmd">npx economicfuzz report .economicfuzz/</span></div>
         <div class="out">  ▸ 5 findings · 1 critical · 2 high · 2 medium</div>
       </div>
     </div>
