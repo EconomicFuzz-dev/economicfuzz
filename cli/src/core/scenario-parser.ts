@@ -26,6 +26,8 @@ export interface Scenario {
     fork_from: string
     accounts: Record<string, string>
   }
+  // top-level scenario tuning (cost models, baseline assumptions)
+  params?: Record<string, unknown>
   attack_sequence: AttackStep[]
   invariants: Invariant[]
   fuzzer_config: FuzzerConfig
@@ -37,10 +39,40 @@ export function loadScenario(filepath: string): Scenario {
   }
 
   const raw = fs.readFileSync(filepath, 'utf-8')
-  const parsed = YAML.parse(raw)
 
-  if (!parsed.name || !parsed.attack_type || !parsed.attack_sequence) {
-    throw new Error('invalid scenario: missing name, attack_type, or attack_sequence')
+  let parsed: unknown
+  try {
+    parsed = YAML.parse(raw)
+  } catch (err) {
+    // YAML library throws compact one-line errors that hide the line number
+    // for tab-vs-space confusions and unclosed quotes. Re-frame so the user
+    // gets a pointer into the actual file.
+    const inner = err instanceof Error ? err.message : String(err)
+    throw new Error(
+      `failed to parse YAML in ${filepath}\n` +
+      `  reason: ${inner}\n` +
+      `  hint:   indentation must be spaces (not tabs); strings with ':' or '#' must be quoted; ` +
+      `lists need a leading "- ".`
+    )
+  }
+
+  if (parsed === null || parsed === undefined) {
+    throw new Error(`scenario file is empty or contains only comments: ${filepath}`)
+  }
+  if (typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error(`scenario root must be a YAML mapping (got ${Array.isArray(parsed) ? 'array' : typeof parsed})`)
+  }
+  const obj = parsed as Record<string, unknown>
+  const missing: string[] = []
+  if (!obj.name) missing.push('name')
+  if (!obj.attack_type) missing.push('attack_type')
+  if (!obj.attack_sequence) missing.push('attack_sequence')
+  if (missing.length > 0) {
+    throw new Error(
+      `invalid scenario: missing required field(s): ${missing.join(', ')}\n` +
+      `  file: ${filepath}\n` +
+      `  see scenarios/oracle_manipulation.yaml for a reference shape.`
+    )
   }
 
   return parsed as Scenario
