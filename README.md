@@ -187,4 +187,4 @@ Run any scenario via `ecofuzz attack scenarios/<file>.yaml`. The fuzzer mutates 
 
 ## License
 
-MIT
+Released under MIT — see [LICENSE](LICENSE). Scenarios, fuzzer harness, and reporting code are published openly so defenders can replicate findings against systems they own or have written authorization to test. Use against third-party deployments without consent falls outside the threat model documented above and outside the permissions granted by this license. The "AS IS" clause is not a footnote: an economic-attack simulator can produce false negatives, and any invariant that holds in the harness must still be argued in production.
