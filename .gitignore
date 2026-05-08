@@ -6,4 +6,5 @@ target/
 .DS_Store
 results/
 *.json.bak
-.ecofuzz/
+.economicfuzz/
+.vercel/
