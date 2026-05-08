@@ -40,7 +40,7 @@ economicfuzz run scenario.yaml
 economicfuzz evolve scenario.yaml --generations 100
 ```
 
-## Stack
+## Toolchain
 
 - Rust core — simulation engine + genetic fuzzer
 - TypeScript CLI
